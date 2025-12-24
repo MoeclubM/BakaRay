@@ -47,14 +47,14 @@ services:
   bakaray-redis:
     image: redis:7-alpine
     container_name: bakaray-redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    command: redis-server --appendonly yes${REDIS_PASSWORD:+ --requirepass $REDIS_PASSWORD}
     volumes:
       - bakaray_redis_data:/data
     networks:
       - bakaray_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      test: ["CMD", "sh", "-c", "${REDIS_PASSWORD:+redis-cli -a $REDIS_PASSWORD ping || redis-cli ping}"]
       interval: 10s
       timeout: 5s
       retries: 5

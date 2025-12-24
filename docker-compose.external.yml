@@ -12,3 +12,9 @@ services:
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_NAME=${DB_NAME:-bakaray}
+
+  # Redis 配置
+  bakaray-redis:
+    command: redis-server --appendonly yes${REDIS_PASSWORD:+ --requirepass $REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "sh", "-c", "${REDIS_PASSWORD:+redis-cli -a $REDIS_PASSWORD ping || redis-cli ping}"]

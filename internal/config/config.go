@@ -66,7 +66,7 @@ func Load() (*Config, error) {
 			Path: getEnv("DB_PATH", "data/bakaray.db"),
 		},
 		Redis: RedisConfig{
-			Host:      getEnv("REDIS_HOST", ""),
+			Host:      getEnv("REDIS_HOST", "localhost"),
 			Port:      getEnvInt("REDIS_PORT", 6379),
 			Password:  getEnv("REDIS_PASSWORD", ""),
 			DB:        getEnvInt("REDIS_DB", 0),

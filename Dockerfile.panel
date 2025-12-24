@@ -32,6 +32,9 @@ RUN apk --no-cache add ca-certificates tzdata curl bash gettext
 # 创建非 root 用户
 RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
 
+# 创建数据目录
+RUN mkdir -p /app/data /app/logs && chown -R app:app /app
+
 # 复制编译产物
 COPY --from=builder /app/panel /app/panel
 

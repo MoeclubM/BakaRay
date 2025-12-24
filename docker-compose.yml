@@ -1,9 +1,9 @@
 # BakaRay Docker Compose 配置
-# 使用 SQLite (默认): docker-compose up -d
-# 使用 MySQL + Redis: docker-compose -f docker-compose.yml -f docker-compose.mysql.yml up -d
+# 使用 SQLite + Redis: docker-compose up -d
+# 使用外部 MySQL: docker-compose -f docker-compose.yml -f docker-compose.external.yml up -d
 
 services:
-  # BakaRay 管理面板 (SQLite 模式)
+  # BakaRay 管理面板
   bakaray-panel:
     build:
       context: .
@@ -14,9 +14,11 @@ services:
     environment:
       # 数据库配置 (SQLite 模式)
       - DB_TYPE=${DB_TYPE:-sqlite}
-      - DB_PATH=${DB_PATH:-data/bakaray.db}
-      # Redis 配置 (可选，设置为空则禁用)
-      - REDIS_HOST=${REDIS_HOST:-}
+      - DB_PATH=${DB_PATH:-/app/data/bakaray.db}
+      # Redis 配置
+      - REDIS_HOST=${REDIS_HOST:-bakaray-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
       # 服务配置
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
@@ -29,6 +31,9 @@ services:
     volumes:
       - bakaray_data:/app/data
       - bakaray_logs:/app/logs
+    depends_on:
+      bakaray-redis:
+        condition: service_healthy
     networks:
       - bakaray_net
     restart: unless-stopped
@@ -38,10 +43,27 @@ services:
       timeout: 3s
       retries: 3
 
+  # Redis 缓存
+  bakaray-redis:
+    image: redis:7-alpine
+    container_name: bakaray-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - bakaray_redis_data:/data
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 networks:
   bakaray_net:
     driver: bridge
 
 volumes:
   bakaray_data:
+  bakaray_redis_data:
   bakaray_logs:

@@ -118,7 +118,7 @@ database:
   path: "data/bakaray.db"
 
 redis:
-  host: ""
+  host: "localhost"
   port: 6379
   password: ""
   db: 0

@@ -1,39 +1,35 @@
 # BakaRay 配置文件
+# 环境变量会覆盖此文件中的配置
 
-# 服务器配置
 server:
   host: "0.0.0.0"
   port: "8080"
-  mode: "debug"  # debug, release
+  mode: "release"
 
-# 数据库配置 (MySQL/PostgreSQL)
 database:
   type: "mysql"
-  host: "localhost"
-  port: 3306
-  username: "root"
-  password: "password"
-  name: "bakaray"
+  host: "${DB_HOST:-localhost}"
+  port: ${DB_PORT:-3306}
+  username: "${DB_USER:-root}"
+  password: "${DB_PASSWORD:-password}"
+  name: "${DB_NAME:-bakaray}"
   max_open_conns: 25
   max_idle_conns: 5
-  conn_max_lifetime: 300  # 秒
+  conn_max_lifetime: 300
 
-# Redis 配置
 redis:
-  host: "localhost"
-  port: 6379
-  password: ""
-  db: 0
+  host: "${REDIS_HOST:-localhost}"
+  port: ${REDIS_PORT:-6379}
+  password: "${REDIS_PASSWORD:-}"
+  db: ${REDIS_DB:-0}
   pool_size: 10
 
-# 站点配置
 site:
   name: "BakaRay"
   domain: "http://localhost:8080"
-  node_secret: "your-node-secret-key"
-  node_report_interval: 30  # 秒
+  node_secret: "${NODE_SECRET:-your-node-secret-key}"
+  node_report_interval: ${NODE_REPORT_INTERVAL:-30}
 
-# JWT 配置
 jwt:
-  secret: "your-jwt-secret-key"
-  expiration: 86400  # 24小时（秒）
+  secret: "${JWT_SECRET:-your-jwt-secret-key}"
+  expiration: 86400

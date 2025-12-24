@@ -1,9 +1,9 @@
 # 构建阶段
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
-# 安装 git（gost 需要）
+# 安装 git
 RUN apk add --no-cache git
 
 # 复制 go 模块文件
@@ -20,13 +20,19 @@ RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o panel ./cmd/server
 FROM alpine:latest
 
 # 安装运行时依赖
-RUN apk --no-cache add ca-certificates tzdata curl
+RUN apk --no-cache add ca-certificates tzdata curl bash
 
 # 创建非 root 用户
 RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
 
 # 复制编译产物
 COPY --from=builder /app/panel /app/panel
+
+# 复制配置模板和启动脚本
+COPY --from=builder /app/config/ /app/config/
+COPY --from=builder /app/docker/entrypoint.sh /app/entrypoint.sh
+
+RUN chmod +x /app/entrypoint.sh
 
 # 切换用户
 USER app
@@ -38,5 +44,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 启动命令
-CMD ["/app/panel"]
+# 启动入口
+ENTRYPOINT ["/app/entrypoint.sh"]

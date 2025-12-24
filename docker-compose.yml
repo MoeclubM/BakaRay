@@ -1,17 +1,15 @@
-version: '3.8'
-
 services:
   # BakaRay 管理面板
   panel:
-    image: bakaray/panel:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.panel
     container_name: bakaray-panel
     ports:
       - "8080:8080"
     environment:
-      # 配置文件路径
-      - CONFIG_FILE=/app/config.yaml
       # 数据库配置 (外部 MySQL/MariaDB)
-      - DB_HOST=${DB_HOST:-localhost}
+      - DB_HOST=${DB_HOST:-mysql}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER:-root}
       - DB_PASSWORD=${DB_PASSWORD:-password}
@@ -24,25 +22,43 @@ services:
       # 服务配置
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
-      - SERVER_MODE=${SERVER_MODE:-debug}
+      - SERVER_MODE=${SERVER_MODE:-release}
       # JWT 配置
-      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
       # 节点配置
-      - NODE_SECRET=${NODE_SECRET:-your-node-secret-key}
+      - NODE_SECRET=${NODE_SECRET:-change-this-secret-in-production}
+      - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
     volumes:
-      - ./config/config.yaml:/app/config.yaml:ro
       - bakaray_logs:/app/logs
     depends_on:
+      mysql:
+        condition: service_healthy
       redis:
         condition: service_healthy
     networks:
       - bakaray_net
     restart: unless-stopped
+
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: bakaray-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-password}
+      - MYSQL_DATABASE=${DB_NAME:-bakaray}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"
+    networks:
+      - bakaray_net
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # Redis 缓存
   redis:
@@ -67,5 +83,6 @@ networks:
     driver: bridge
 
 volumes:
+  mysql_data:
   redis_data:
   bakaray_logs:

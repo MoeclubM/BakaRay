@@ -14,6 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func init() {
+	// 确保正确设置 MIME 类型
+	gin.SetMode(gin.ReleaseMode)
+}
+
 func main() {
 	// 加载配置
 	cfg, err := config.Load()
@@ -66,13 +71,21 @@ func main() {
 	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService)
 
 	// 创建 Gin 引擎
-	if cfg.Server.Mode == "release" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-	r := gin.Default()
+	r := gin.New()
+
+	// 自定义 MIME 类型中间件
+	r.Use(func(c *gin.Context) {
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Next()
+	})
+
+	r.Use(gin.Logger())
+	r.Use(gin.Recovery())
 
 	// 提供前端静态文件
 	r.Static("/public", "/app/public")
+	r.Static("/assets", "/app/public/assets")
+	r.Static("/vite.svg", "/app/public/vite.svg")
 
 	// 首页路由
 	r.GET("/", func(c *gin.Context) {

@@ -12,9 +12,9 @@ import (
 )
 
 var (
-	ErrUserNotFound      = errors.New("用户不存在")
-	ErrUserExists        = errors.New("用户已存在")
-	ErrInvalidPassword   = errors.New("密码错误")
+	ErrUserNotFound        = errors.New("用户不存在")
+	ErrUserExists          = errors.New("用户已存在")
+	ErrInvalidPassword     = errors.New("密码错误")
 	ErrInsufficientBalance = errors.New("余额不足")
 )
 

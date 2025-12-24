@@ -97,9 +97,9 @@ func Setup(
 			{
 				site.GET("", func(c *gin.Context) {
 					c.JSON(200, gin.H{"code": 0, "data": gin.H{
-						"site_name":           "BakaRay",
-						"site_domain":         "http://localhost:8080",
-						"node_secret":         "your-node-secret-key",
+						"site_name":            "BakaRay",
+						"site_domain":          "http://localhost:8080",
+						"node_secret":          "your-node-secret-key",
 						"node_report_interval": 30,
 					}})
 				})

@@ -41,13 +41,13 @@ func (h *RuleHandler) GetRules(c *gin.Context) {
 
 // CreateRuleRequest 创建规则请求
 type CreateRuleRequest struct {
-        Name        string          `json:"name" binding:"required"`
-        NodeID      uint            `json:"node_id" binding:"required"`
-        Protocol    string          `json:"protocol" binding:"required"`
-        ListenPort  int             `json:"listen_port" binding:"required"`
-        Mode        string          `json:"mode"`
-        Targets     []TargetRequest `json:"targets" binding:"required,min=1"`
-        GostConfig  *GostConfig     `json:"gost_config"`
+	Name           string          `json:"name" binding:"required"`
+	NodeID         uint            `json:"node_id" binding:"required"`
+	Protocol       string          `json:"protocol" binding:"required"`
+	ListenPort     int             `json:"listen_port" binding:"required"`
+	Mode           string          `json:"mode"`
+	Targets        []TargetRequest `json:"targets" binding:"required,min=1"`
+	GostConfig     *GostConfig     `json:"gost_config"`
 	IPTablesConfig *IPTablesConfig `json:"iptables_config"`
 }
 
@@ -88,17 +88,17 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 		mode = "direct"
 	}
 
-        rule := &models.ForwardingRule{
-                NodeID:      req.NodeID,
-                UserID:      userID,
-                Name:        req.Name,
-                Protocol:    req.Protocol,
-                ListenPort:  req.ListenPort,
-                Mode:        mode,
-		Enabled:     true,
-		TrafficUsed: 0,
+	rule := &models.ForwardingRule{
+		NodeID:       req.NodeID,
+		UserID:       userID,
+		Name:         req.Name,
+		Protocol:     req.Protocol,
+		ListenPort:   req.ListenPort,
+		Mode:         mode,
+		Enabled:      true,
+		TrafficUsed:  0,
 		TrafficLimit: 0,
-		SpeedLimit:  0,
+		SpeedLimit:   0,
 	}
 
 	if err := h.ruleService.CreateRule(rule); err != nil {
@@ -144,7 +144,7 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "创建成功",
 		"data": gin.H{
 			"id": rule.ID,
@@ -178,9 +178,9 @@ func (h *RuleHandler) GetRule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"rule":   rule,
-			"targets": targets,
-			"gost_config":    gostRule,
+			"rule":            rule,
+			"targets":         targets,
+			"gost_config":     gostRule,
 			"iptables_config": iptRule,
 		},
 	})
@@ -195,20 +195,20 @@ func (h *RuleHandler) DeleteRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "删除成功",
 	})
 }
 
 // UpdateRuleRequest 更新规则请求
 type UpdateRuleRequest struct {
-        Name        string          `json:"name"`
-        Enabled     *bool           `json:"enabled"`
-        NodeID      uint            `json:"node_id"`
-        TrafficLimit int64          `json:"traffic_limit"`
-        SpeedLimit   int64          `json:"speed_limit"`
-        Mode        string          `json:"mode"`
-        Targets     []TargetRequest `json:"targets"`
+	Name         string          `json:"name"`
+	Enabled      *bool           `json:"enabled"`
+	NodeID       uint            `json:"node_id"`
+	TrafficLimit int64           `json:"traffic_limit"`
+	SpeedLimit   int64           `json:"speed_limit"`
+	Mode         string          `json:"mode"`
+	Targets      []TargetRequest `json:"targets"`
 }
 
 // UpdateRule 更新规则
@@ -247,12 +247,12 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 	if req.SpeedLimit > 0 {
 		updates["speed_limit"] = req.SpeedLimit
 	}
-        if req.Mode != "" {
-                updates["mode"] = req.Mode
-        }
-        if req.NodeID > 0 {
-                updates["node_id"] = req.NodeID
-        }
+	if req.Mode != "" {
+		updates["mode"] = req.Mode
+	}
+	if req.NodeID > 0 {
+		updates["node_id"] = req.NodeID
+	}
 
 	if err := h.ruleService.UpdateRule(uint(id), updates); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败"})
@@ -275,7 +275,7 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "更新成功",
 	})
 }

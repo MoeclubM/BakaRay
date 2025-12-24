@@ -37,12 +37,12 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"id":          user.ID,
-			"username":    user.Username,
-			"balance":     user.Balance,
-			"user_group":  user.UserGroupID,
-			"role":        user.Role,
-			"created_at":  user.CreatedAt,
+			"id":         user.ID,
+			"username":   user.Username,
+			"balance":    user.Balance,
+			"user_group": user.UserGroupID,
+			"role":       user.Role,
+			"created_at": user.CreatedAt,
 		},
 	})
 }

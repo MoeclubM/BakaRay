@@ -52,4 +52,3 @@ func (s StringSlice) Value() (driver.Value, error) {
 	}
 	return string(b), nil
 }
-

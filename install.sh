@@ -40,7 +40,7 @@ case $INSTALL_TYPE in
             read -p "  MySQL 主机地址: " DB_HOST
             read -p "  端口 [3306]: " DB_PORT
             DB_PORT=${DB_PORT:-3306}
-            read -p "  用户名: " DB_USER
+            read -p "  用户名: " DB_USERNAME
             read -p "  密码: " DB_PASSWORD
             read -p "  数据库名: " DB_NAME
         fi
@@ -64,7 +64,7 @@ case $INSTALL_TYPE in
             DB_TYPE=mysql \
             DB_HOST="$DB_HOST" \
             DB_PORT="$DB_PORT" \
-            DB_USER="$DB_USER" \
+            DB_USERNAME="$DB_USERNAME" \
             DB_PASSWORD="$DB_PASSWORD" \
             DB_NAME="$DB_NAME" \
             JWT_SECRET="$JWT_SECRET" \
@@ -154,7 +154,7 @@ EOF
         echo -e "${CYAN}启动服务: ./bakaray${NC}"
         echo -e "${CYAN}访问地址: http://localhost:8080${NC}"
         echo ""
-        echo "默认账号: admin / admin123"
+        echo "初次使用请运行: go run ./cmd/init-account --username <name> --password <secret>"
         echo "配置文件: config.yaml"
         echo "数据库文件: data/bakaray.db"
         ;;

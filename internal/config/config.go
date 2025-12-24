@@ -23,19 +23,25 @@ type ServerConfig struct {
 	Mode string `yaml:"mode"`
 }
 
-// DatabaseConfig 数据库配置（SQLite）
+// DatabaseConfig 数据库配置
+// 支持 sqlite 和 mysql/mariadb 两种模式
 type DatabaseConfig struct {
-	Type string `yaml:"type"`
-	Path string `yaml:"path"` // SQLite 数据库文件路径
+	Type     string `yaml:"type"`
+	Path     string `yaml:"path"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
+	Name     string `yaml:"name"`
 }
 
 // RedisConfig Redis 配置
 type RedisConfig struct {
-	Host      string `yaml:"host"`
-	Port      int    `yaml:"port"`
-	Password  string `yaml:"password"`
-	DB        int    `yaml:"db"`
-	PoolSize  int    `yaml:"pool_size"`
+	Host     string `yaml:"host"`
+	Port     int    `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+	PoolSize int    `yaml:"pool_size"`
 }
 
 // SiteConfig 站点配置
@@ -54,7 +60,6 @@ type JWTConfig struct {
 
 // Load 加载配置文件
 func Load() (*Config, error) {
-	// 优先从环境变量加载
 	cfg := &Config{
 		Server: ServerConfig{
 			Host: getEnv("SERVER_HOST", "0.0.0.0"),
@@ -62,21 +67,26 @@ func Load() (*Config, error) {
 			Mode: getEnv("SERVER_MODE", "release"),
 		},
 		Database: DatabaseConfig{
-			Type: getEnv("DB_TYPE", "sqlite"),
-			Path: getEnv("DB_PATH", "data/bakaray.db"),
+			Type:     getEnv("DB_TYPE", "sqlite"),
+			Path:     getEnv("DB_PATH", "data/bakaray.db"),
+			Host:     getEnv("DB_HOST", "localhost"),
+			Port:     getEnvInt("DB_PORT", 3306),
+			Username: getEnv("DB_USERNAME", "root"),
+			Password: getEnv("DB_PASSWORD", ""),
+			Name:     getEnv("DB_NAME", "bakaray"),
 		},
 		Redis: RedisConfig{
-			Host:      getEnv("REDIS_HOST", "localhost"),
-			Port:      getEnvInt("REDIS_PORT", 6379),
-			Password:  getEnv("REDIS_PASSWORD", "bakaray-redis-password"),
-			DB:        getEnvInt("REDIS_DB", 0),
-			PoolSize:  getEnvInt("REDIS_POOL_SIZE", 10),
+			Host:     getEnv("REDIS_HOST", "localhost"),
+			Port:     getEnvInt("REDIS_PORT", 6379),
+			Password: getEnv("REDIS_PASSWORD", "bakaray-redis-password"),
+			DB:       getEnvInt("REDIS_DB", 0),
+			PoolSize: getEnvInt("REDIS_POOL_SIZE", 10),
 		},
 		Site: SiteConfig{
 			Name:               getEnv("SITE_NAME", "BakaRay"),
 			Domain:             getEnv("SITE_DOMAIN", "http://localhost:8080"),
 			NodeSecret:         getEnv("NODE_SECRET", "change-this-secret-in-production"),
-			NodeReportInterval: getEnvInt("NODE_REPORT_INTERVAL", 30),
+			NodeReportInterval: getEnvInt("NODE_REPORT_INTERVAL", 300),
 		},
 		JWT: JWTConfig{
 			Secret:     getEnv("JWT_SECRET", "change-this-secret-in-production"),
@@ -84,7 +94,6 @@ func Load() (*Config, error) {
 		},
 	}
 
-	// 尝试从配置文件加载
 	configFile := getEnv("CONFIG_FILE", "config.yaml")
 	if _, err := os.Stat(configFile); err == nil {
 		data, err := os.ReadFile(configFile)

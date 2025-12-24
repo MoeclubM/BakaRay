@@ -1,20 +1,16 @@
 package main
 
 import (
-	"flag"
 	"log"
-	"os"
 
 	"bakaray/internal/config"
 	"bakaray/internal/handlers"
 	"bakaray/internal/middleware"
-	"bakaray/internal/models"
 	"bakaray/internal/repository"
 	"bakaray/internal/services"
 	"bakaray/routes"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
@@ -22,10 +18,6 @@ func init() {
 }
 
 func main() {
-	// 命令行参数
-	initDB := flag.Bool("init-db", false, "Initialize database with default admin user")
-	flag.Parse()
-
 	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
@@ -48,31 +40,6 @@ func main() {
 	log.Println("Migrating database...")
 	if err := repository.AutoMigrate(db); err != nil {
 		log.Printf("Warning: Database migration failed: %v", err)
-	}
-
-	// 如果指定 --init-db，创建默认管理员
-	if *initDB {
-		log.Println("Initializing database with default admin user...")
-		var count int64
-		db.Model(&models.User{}).Count(&count)
-		if count == 0 {
-			hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
-			admin := models.User{
-				Username:     "admin",
-				PasswordHash: string(hash),
-				Balance:      0,
-				UserGroupID:  0,
-				Role:         "admin",
-			}
-			if err := db.Create(&admin).Error; err != nil {
-				log.Printf("Failed to create admin user: %v", err)
-			} else {
-				log.Println("Default admin user created: admin / admin123")
-			}
-		} else {
-			log.Println("Admin user already exists, skipping.")
-		}
-		os.Exit(0)
 	}
 
 	// 初始化 Redis (可选)

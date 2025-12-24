@@ -9,7 +9,7 @@ services:
       - DB_TYPE=${DB_TYPE:-mysql}
       - DB_HOST=${DB_HOST:-localhost}
       - DB_PORT=${DB_PORT:-3306}
-      - DB_USER=${DB_USER:-root}
+      - DB_USERNAME=${DB_USERNAME:-root}
       - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_NAME=${DB_NAME:-bakaray}
 

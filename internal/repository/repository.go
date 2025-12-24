@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"bakaray/internal/config"
 	"bakaray/internal/models"
-
 	"github.com/redis/go-redis/v9"
+	"gorm.io/driver/mysql"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -18,18 +19,26 @@ import (
 // DB 数据库连接
 var DB *gorm.DB
 
-// NewDB 创建数据库连接（仅支持 SQLite）
+// NewDB 创建数据库连接
 func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	// 确保目录存在
-	dataDir := cfg.Path
-	if !filepath.IsAbs(cfg.Path) {
-		dataDir = "/app/" + cfg.Path
-	}
-	if err := os.MkdirAll(filepath.Dir(dataDir), 0755); err != nil {
-		return nil, fmt.Errorf("failed to create data directory: %w", err)
+	var dialector gorm.Dialector
+	switch strings.ToLower(cfg.Type) {
+	case "mysql", "mariadb":
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+			cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
+		dialector = mysql.Open(dsn)
+	default:
+		dbPath := cfg.Path
+		if !filepath.IsAbs(dbPath) {
+			dbPath = filepath.Join("/app", dbPath)
+		}
+		if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data directory: %w", err)
+		}
+		dialector = sqlite.Open(dbPath)
 	}
 
-	db, err := gorm.Open(sqlite.Open(cfg.Path), &gorm.Config{
+	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {

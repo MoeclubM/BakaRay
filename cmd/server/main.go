@@ -72,12 +72,11 @@ func main() {
 	r := gin.Default()
 
 	// 提供前端静态文件
-	r.Static("/public", "public")
-	r.LoadHTMLGlob("public/index.html")
+	r.Static("/public", "/app/public")
 
-	// 首页路由（返回前端入口）
+	// 首页路由
 	r.GET("/", func(c *gin.Context) {
-		c.HTML(200, "index.html", nil)
+		c.File("/app/public/index.html")
 	})
 
 	// Vue SPA 路由支持 - 所有前端路由返回 index.html
@@ -89,11 +88,9 @@ func main() {
 		"/admin/user-groups", "/admin/payments", "/admin/settings",
 	}
 	for _, route := range frontendRoutes {
-		r.GET(route, func() gin.HandlerFunc {
-			return func(c *gin.Context) {
-				c.HTML(200, "index.html", nil)
-			}
-		}())
+		r.GET(route, func(c *gin.Context) {
+			c.File("/app/public/index.html")
+		})
 	}
 
 	// 捕获所有前端路由（兜底）
@@ -101,7 +98,7 @@ func main() {
 		path := c.Request.URL.Path
 		// 如果不是 API 请求，返回前端入口
 		if len(path) > 4 && path[:4] != "/api" {
-			c.HTML(200, "index.html", nil)
+			c.File("/app/public/index.html")
 		}
 	})
 

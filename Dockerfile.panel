@@ -27,7 +27,7 @@ WORKDIR /app
 FROM alpine:latest
 
 # 安装运行时依赖
-RUN apk --no-cache add ca-certificates tzdata curl bash
+RUN apk --no-cache add ca-certificates tzdata curl bash gettext
 
 # 创建非 root 用户
 RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app

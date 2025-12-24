@@ -24,15 +24,8 @@ mkdir -p /app/data /app/logs
 DB_FILE="${DB_PATH:-/app/data/bakaray.db}"
 if [ ! -f "$DB_FILE" ]; then
     echo "Creating new database..."
-    # 使用 sqlite3 命令初始化
-    if command -v sqlite3 &> /dev/null; then
-        sqlite3 "$DB_FILE" < /app/migrations/001_init.sql
-        echo "Database initialized."
-    else
-        echo "Warning: sqlite3 command not found, database initialization skipped."
-    fi
-else
-    echo "Database already exists, skipping initialization."
+    # 手动创建数据库表
+    /app/panel --init-db || echo "Warning: Database initialization skipped."
 fi
 
 # 启动服务

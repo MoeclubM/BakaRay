@@ -1,25 +1,31 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 
 	"bakaray/internal/config"
 	"bakaray/internal/handlers"
 	"bakaray/internal/middleware"
+	"bakaray/internal/models"
 	"bakaray/internal/repository"
 	"bakaray/internal/services"
 	"bakaray/routes"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func init() {
-	// 确保正确设置 MIME 类型
 	gin.SetMode(gin.ReleaseMode)
 }
 
 func main() {
+	// 命令行参数
+	initDB := flag.Bool("init-db", false, "Initialize database with default admin user")
+	flag.Parse()
+
 	// 加载配置
 	cfg, err := config.Load()
 	if err != nil {
@@ -42,6 +48,31 @@ func main() {
 	log.Println("Migrating database...")
 	if err := repository.AutoMigrate(db); err != nil {
 		log.Printf("Warning: Database migration failed: %v", err)
+	}
+
+	// 如果指定 --init-db，创建默认管理员
+	if *initDB {
+		log.Println("Initializing database with default admin user...")
+		var count int64
+		db.Model(&models.User{}).Count(&count)
+		if count == 0 {
+			hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+			admin := models.User{
+				Username:     "admin",
+				PasswordHash: string(hash),
+				Balance:      0,
+				UserGroupID:  0,
+				Role:         "admin",
+			}
+			if err := db.Create(&admin).Error; err != nil {
+				log.Printf("Failed to create admin user: %v", err)
+			} else {
+				log.Println("Default admin user created: admin / admin123")
+			}
+		} else {
+			log.Println("Admin user already exists, skipping.")
+		}
+		os.Exit(0)
 	}
 
 	// 初始化 Redis (可选)
@@ -92,7 +123,7 @@ func main() {
 		c.File("/app/public/index.html")
 	})
 
-	// Vue SPA 路由支持 - 所有前端路由返回 index.html
+	// Vue SPA 路由支持
 	frontendRoutes := []string{
 		"/login", "/register", "/dashboard", "/nodes", "/rules",
 		"/packages", "/orders", "/profile", "/deposit/callback",
@@ -109,7 +140,6 @@ func main() {
 	// 捕获所有前端路由（兜底）
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		// 如果不是 API 请求，返回前端入口
 		if len(path) > 4 && path[:4] != "/api" {
 			c.File("/app/public/index.html")
 		}
@@ -123,9 +153,4 @@ func main() {
 	if err := r.Run(cfg.Server.Host + ":" + cfg.Server.Port); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
-}
-
-func init() {
-	// 确保日志目录存在
-	os.MkdirAll("logs", 0755)
 }

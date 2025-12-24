@@ -33,12 +33,20 @@ func main() {
 		}
 	}()
 
-	// 初始化 Redis
+	// 自动迁移数据库表
+	log.Println("Migrating database...")
+	if err := repository.AutoMigrate(db); err != nil {
+		log.Printf("Warning: Database migration failed: %v", err)
+	}
+
+	// 初始化 Redis (可选)
 	redis, err := repository.NewRedis(cfg.Redis)
 	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+		log.Printf("Warning: Failed to connect to Redis: %v (continuing without Redis)", err)
+		redis = nil
+	} else if redis != nil {
+		defer redis.Close()
 	}
-	defer redis.Close()
 
 	// 初始化服务
 	userService := services.NewUserService(db, redis)
@@ -49,13 +57,13 @@ func main() {
 	nodeGroupService := services.NewNodeGroupService(db)
 	userGroupService := services.NewUserGroupService(db)
 
-		// 初始化处理器
-		authHandler := handlers.NewAuthHandler(userService)
-		userHandler := handlers.NewUserHandler(userService, ruleService)
-		nodeHandler := handlers.NewNodeHandler(nodeService, ruleService)
-		ruleHandler := handlers.NewRuleHandler(ruleService)
-		paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
-		adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService)
+	// 初始化处理器
+	authHandler := handlers.NewAuthHandler(userService)
+	userHandler := handlers.NewUserHandler(userService, ruleService)
+	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService)
+	ruleHandler := handlers.NewRuleHandler(ruleService)
+	paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
+	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService)
 
 	// 创建 Gin 引擎
 	if cfg.Server.Mode == "release" {
@@ -63,7 +71,41 @@ func main() {
 	}
 	r := gin.Default()
 
-	// 注册路由
+	// 提供前端静态文件
+	r.Static("/public", "public")
+	r.LoadHTMLGlob("public/index.html")
+
+	// 首页路由（返回前端入口）
+	r.GET("/", func(c *gin.Context) {
+		c.HTML(200, "index.html", nil)
+	})
+
+	// Vue SPA 路由支持 - 所有前端路由返回 index.html
+	frontendRoutes := []string{
+		"/login", "/register", "/dashboard", "/nodes", "/rules",
+		"/packages", "/orders", "/profile", "/deposit/callback",
+		"/admin", "/admin/dashboard", "/admin/nodes", "/admin/users",
+		"/admin/packages", "/admin/orders", "/admin/node-groups",
+		"/admin/user-groups", "/admin/payments", "/admin/settings",
+	}
+	for _, route := range frontendRoutes {
+		r.GET(route, func() gin.HandlerFunc {
+			return func(c *gin.Context) {
+				c.HTML(200, "index.html", nil)
+			}
+		}())
+	}
+
+	// 捕获所有前端路由（兜底）
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		// 如果不是 API 请求，返回前端入口
+		if len(path) > 4 && path[:4] != "/api" {
+			c.HTML(200, "index.html", nil)
+		}
+	})
+
+	// 注册 API 路由
 	routes.Setup(r, authHandler, userHandler, nodeHandler, ruleHandler, paymentHandler, adminHandler, middleware.NewAuthMiddleware(userService))
 
 	// 启动服务器

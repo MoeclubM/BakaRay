@@ -23,18 +23,10 @@ type ServerConfig struct {
 	Mode string `yaml:"mode"`
 }
 
-// DatabaseConfig 数据库配置
+// DatabaseConfig 数据库配置（SQLite）
 type DatabaseConfig struct {
-	Type            string `yaml:"type"`
-	Path            string `yaml:"path"` // SQLite 数据库文件路径
-	Host            string `yaml:"host"`
-	Port            int    `yaml:"port"`
-	Username        string `yaml:"username"`
-	Password        string `yaml:"password"`
-	Name            string `yaml:"name"`
-	MaxOpenConns    int    `yaml:"max_open_conns"`
-	MaxIdleConns    int    `yaml:"max_idle_conns"`
-	ConnMaxLifetime int    `yaml:"conn_max_lifetime"`
+	Type string `yaml:"type"`
+	Path string `yaml:"path"` // SQLite 数据库文件路径
 }
 
 // RedisConfig Redis 配置
@@ -67,31 +59,27 @@ func Load() (*Config, error) {
 		Server: ServerConfig{
 			Host: getEnv("SERVER_HOST", "0.0.0.0"),
 			Port: getEnv("SERVER_PORT", "8080"),
-			Mode: getEnv("SERVER_MODE", "debug"),
+			Mode: getEnv("SERVER_MODE", "release"),
 		},
 		Database: DatabaseConfig{
-			Type:     getEnv("DB_TYPE", "sqlite"),
-			Path:     getEnv("DB_PATH", "data/bakaray.db"),
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnvInt("DB_PORT", 3306),
-			Username: getEnv("DB_USERNAME", "root"),
-			Password: getEnv("DB_PASSWORD", "password"),
-			Name:     getEnv("DB_NAME", "bakaray"),
+			Type: getEnv("DB_TYPE", "sqlite"),
+			Path: getEnv("DB_PATH", "data/bakaray.db"),
 		},
 		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnvInt("REDIS_PORT", 6379),
-			Password: getEnv("REDIS_PASSWORD", ""),
-			DB:       getEnvInt("REDIS_DB", 0),
+			Host:      getEnv("REDIS_HOST", ""),
+			Port:      getEnvInt("REDIS_PORT", 6379),
+			Password:  getEnv("REDIS_PASSWORD", ""),
+			DB:        getEnvInt("REDIS_DB", 0),
+			PoolSize:  getEnvInt("REDIS_POOL_SIZE", 10),
 		},
 		Site: SiteConfig{
 			Name:               getEnv("SITE_NAME", "BakaRay"),
 			Domain:             getEnv("SITE_DOMAIN", "http://localhost:8080"),
-			NodeSecret:         getEnv("NODE_SECRET", "your-node-secret-key"),
+			NodeSecret:         getEnv("NODE_SECRET", "change-this-secret-in-production"),
 			NodeReportInterval: getEnvInt("NODE_REPORT_INTERVAL", 30),
 		},
 		JWT: JWTConfig{
-			Secret:     getEnv("JWT_SECRET", "your-jwt-secret-key"),
+			Secret:     getEnv("JWT_SECRET", "change-this-secret-in-production"),
 			Expiration: getEnvInt("JWT_EXPIRATION", 86400),
 		},
 	}

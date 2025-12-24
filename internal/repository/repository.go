@@ -4,14 +4,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"bakaray/internal/config"
 	"bakaray/internal/models"
 
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -20,54 +17,31 @@ import (
 // DB 数据库连接
 var DB *gorm.DB
 
-// NewDB 创建数据库连接
+// NewDB 创建数据库连接（仅支持 SQLite）
 func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	var dialector gorm.Dialector
-
-	switch cfg.Type {
-	case "sqlite", "sqlite3":
-		// 确保目录存在
-		if err := os.MkdirAll("data", 0755); err != nil {
-			return nil, fmt.Errorf("failed to create data directory: %w", err)
-		}
-		dialector = sqlite.Open(cfg.Path)
-	case "mysql":
-		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
-		dialector = mysql.Open(dsn)
-	case "postgres":
-		dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
-			cfg.Host, cfg.Port, cfg.Username, cfg.Password, cfg.Name)
-		dialector = postgres.Open(dsn)
-	default:
-		return nil, fmt.Errorf("unsupported database type: %s", cfg.Type)
+	// 确保目录存在
+	if err := os.MkdirAll("data", 0755); err != nil {
+		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
 
-	db, err := gorm.Open(dialector, &gorm.Config{
+	db, err := gorm.Open(sqlite.Open(cfg.Path), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect database: %w", err)
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
-	}
-
-	// SQLite 不需要连接池配置
-	if cfg.Type != "sqlite" && cfg.Type != "sqlite3" {
-		sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-		sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-		sqlDB.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
-	}
-
 	DB = db
 	return db, nil
 }
 
-// NewRedis 创建 Redis 连接
+// NewRedis 创建 Redis 连接（可选）
 func NewRedis(cfg config.RedisConfig) (*redis.Client, error) {
+	// 如果 Redis Host 为空，跳过 Redis 初始化
+	if cfg.Host == "" {
+		return nil, nil
+	}
+
 	client := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,

@@ -1,0 +1,45 @@
+# 外部 MySQL/PostgreSQL Docker Compose 配置
+# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.external.yml up -d
+
+services:
+  # 覆盖面板服务，添加外部数据库连接
+  bakaray-panel:
+    environment:
+      # 外部数据库配置
+      - DB_TYPE=${DB_TYPE:-mysql}       # mysql / postgres
+      - DB_HOST=${DB_HOST:-localhost}   # 外部数据库主机
+      - DB_PORT=${DB_PORT:-3306}        # 数据库端口
+      - DB_USER=${DB_USER:-root}        # 数据库用户名
+      - DB_PASSWORD=${DB_PASSWORD:-}    # 数据库密码
+      - DB_NAME=${DB_NAME:-bakaray}     # 数据库名
+      # Redis 配置（可选）
+      - REDIS_HOST=${REDIS_HOST:-}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+
+# MySQL 服务（可选，如使用外部数据库可删除此部分）
+  bakaray-mysql:
+    image: mysql:8.0
+    container_name: bakaray-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-password}
+      - MYSQL_DATABASE=${DB_NAME:-bakaray}
+    volumes:
+      - bakaray_mysql_data:/var/lib/mysql
+    ports:
+      - "8501:3306"
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  bakaray_net:
+    driver: bridge
+
+volumes:
+  bakaray_mysql_data:

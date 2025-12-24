@@ -12,23 +12,23 @@ import (
 
 // AdminHandler 后台管理处理器
 type AdminHandler struct {
-	userService       *services.UserService
-	nodeService       *services.NodeService
-	ruleService       *services.RuleService
-	paymentService    *services.PaymentService
-	nodeGroupService  *services.NodeGroupService
-	userGroupService  *services.UserGroupService
+	userService      *services.UserService
+	nodeService      *services.NodeService
+	ruleService      *services.RuleService
+	paymentService   *services.PaymentService
+	nodeGroupService *services.NodeGroupService
+	userGroupService *services.UserGroupService
 }
 
 // NewAdminHandler 创建后台管理处理器
 func NewAdminHandler(userService *services.UserService, nodeService *services.NodeService, ruleService *services.RuleService, paymentService *services.PaymentService, nodeGroupService *services.NodeGroupService, userGroupService *services.UserGroupService) *AdminHandler {
 	return &AdminHandler{
-		userService:       userService,
-		nodeService:       nodeService,
-		ruleService:       ruleService,
-		paymentService:    paymentService,
-		nodeGroupService:  nodeGroupService,
-		userGroupService:  userGroupService,
+		userService:      userService,
+		nodeService:      nodeService,
+		ruleService:      ruleService,
+		paymentService:   paymentService,
+		nodeGroupService: nodeGroupService,
+		userGroupService: userGroupService,
 	}
 }
 
@@ -298,14 +298,14 @@ func (h *AdminHandler) GetAdminNodes(c *gin.Context) {
 
 // CreateNodeRequest 创建节点请求
 type CreateNodeRequest struct {
-	Name       string `json:"name" binding:"required"`
-	Host       string `json:"host" binding:"required"`
-	Port       int    `json:"port" binding:"required"`
-	Secret     string `json:"secret" binding:"required"`
-	NodeGroupID uint  `json:"node_group_id"`
-	Protocols  []string `json:"protocols"`
-	Multiplier float64  `json:"multiplier"`
-	Region     string   `json:"region"`
+	Name        string   `json:"name" binding:"required"`
+	Host        string   `json:"host" binding:"required"`
+	Port        int      `json:"port" binding:"required"`
+	Secret      string   `json:"secret" binding:"required"`
+	NodeGroupID uint     `json:"node_group_id"`
+	Protocols   []string `json:"protocols"`
+	Multiplier  float64  `json:"multiplier"`
+	Region      string   `json:"region"`
 }
 
 // CreateNode 创建节点
@@ -316,28 +316,28 @@ func (h *AdminHandler) CreateNode(c *gin.Context) {
 		return
 	}
 
-        multiplier := req.Multiplier
-        if multiplier <= 0 {
-                multiplier = 1
-        }
+	multiplier := req.Multiplier
+	if multiplier <= 0 {
+		multiplier = 1
+	}
 
-        node, err := h.nodeService.CreateNode(
-                req.Name,
-                req.Host,
-                req.Port,
-                req.Secret,
-                req.NodeGroupID,
-                req.Protocols,
-                multiplier,
-                req.Region,
-        )
-        if err != nil {
-                c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建节点失败"})
-                return
-        }
+	node, err := h.nodeService.CreateNode(
+		req.Name,
+		req.Host,
+		req.Port,
+		req.Secret,
+		req.NodeGroupID,
+		req.Protocols,
+		multiplier,
+		req.Region,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建节点失败"})
+		return
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "创建成功",
 		"data": gin.H{
 			"id": node.ID,
@@ -381,11 +381,11 @@ func (h *AdminHandler) GetAdminUsers(c *gin.Context) {
 
 // CreateUserRequest 创建用户请求
 type CreateUserRequest struct {
-        Username   string `json:"username" binding:"required"`
-        Password   string `json:"password" binding:"required"`
-        UserGroupID uint  `json:"user_group_id"`
-        Balance    int64  `json:"balance"`
-        IsAdmin    bool   `json:"is_admin"`
+	Username    string `json:"username" binding:"required"`
+	Password    string `json:"password" binding:"required"`
+	UserGroupID uint   `json:"user_group_id"`
+	Balance     int64  `json:"balance"`
+	IsAdmin     bool   `json:"is_admin"`
 }
 
 // CreateUser 创建用户
@@ -402,19 +402,19 @@ func (h *AdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-        // 设置初始余额
-        if req.Balance > 0 {
-                h.userService.UpdateBalance(user.ID, req.Balance)
-        }
+	// 设置初始余额
+	if req.Balance > 0 {
+		h.userService.UpdateBalance(user.ID, req.Balance)
+	}
 
-        // 设置管理员角色
-        if req.IsAdmin {
-                _ = h.userService.UpdateUser(user.ID, map[string]interface{}{"role": "admin"})
-        }
+	// 设置管理员角色
+	if req.IsAdmin {
+		_ = h.userService.UpdateUser(user.ID, map[string]interface{}{"role": "admin"})
+	}
 
-        c.JSON(http.StatusOK, gin.H{
-                "code": 0,
-                "message": "创建成功",
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "创建成功",
 		"data": gin.H{
 			"id": user.ID,
 		},
@@ -441,7 +441,7 @@ func (h *AdminHandler) AdjustBalance(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "调整成功",
 	})
 }
@@ -486,7 +486,7 @@ func (h *AdminHandler) UpdateOrderStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "更新成功",
 	})
 }
@@ -532,7 +532,7 @@ func (h *AdminHandler) CreatePackage(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "创建成功",
 		"data": gin.H{
 			"id": pkg.ID,

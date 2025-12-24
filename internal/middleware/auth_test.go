@@ -16,10 +16,10 @@ func init() {
 
 // mockUserService implements the methods used by AuthMiddleware
 type mockUserService struct {
-	jwtSecret    string
-	jwtExp       int
-	mockUserID   uint
-	mockUserErr  error
+	jwtSecret   string
+	jwtExp      int
+	mockUserID  uint
+	mockUserErr error
 }
 
 func (m *mockUserService) GetJWTSecret() string {

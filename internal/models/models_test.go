@@ -42,13 +42,13 @@ func TestUserJSON(t *testing.T) {
 
 func TestNodeStatus(t *testing.T) {
 	node := Node{
-		ID:      1,
-		Name:    "Test Node",
-		Host:    "node1.example.com",
-		Port:    22,
-		Secret:  "secret123",
-		Status:  "online",
-		Region:  "US",
+		ID:     1,
+		Name:   "Test Node",
+		Host:   "node1.example.com",
+		Port:   22,
+		Secret: "secret123",
+		Status: "online",
+		Region: "US",
 	}
 
 	if node.Status != "online" {

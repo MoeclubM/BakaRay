@@ -39,6 +39,14 @@ BakaRay 是一个用于管理转发规则的面板系统，支持 gost、iptable
 - [x] gost/iptables 配置生成（节点配置下发包含 targets 与协议配置）
 - [x] 节点组/用户组管理
 
+### 项目范围说明
+- **BakaRay（本仓库）**: 管理面板，包含前后端，用于管理节点、用户、规则、订单等
+- **BakaRay-Node（独立项目）**: 节点端，负责实际的数据转发和流量统计，不在本仓库范围内
+- 本仓库提供完整的节点通信 API 供 BakaRay-Node 调用：
+  - POST /api/node/heartbeat - 节点心跳上报
+  - GET/POST /api/node/config - 获取节点配置
+  - POST /api/node/report - 上报数据（探针/流量）
+
 ---
 
 ## 模块状态详情

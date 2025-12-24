@@ -13,8 +13,8 @@ services:
       - DB_PASSWORD=${DB_PASSWORD:-}
       - DB_NAME=${DB_NAME:-bakaray}
 
-  # Redis 配置
+  # Redis 配置（使用相同密码）
   bakaray-redis:
-    command: redis-server --appendonly yes${REDIS_PASSWORD:+ --requirepass $REDIS_PASSWORD}
+    command: redis-server --appendonly yes --requirepass bakaray-redis-password
     healthcheck:
-      test: ["CMD", "sh", "-c", "${REDIS_PASSWORD:+redis-cli -a $REDIS_PASSWORD ping || redis-cli ping}"]
+      test: ["CMD", "redis-cli", "-a", "bakaray-redis-password", "ping"]

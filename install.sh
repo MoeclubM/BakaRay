@@ -120,7 +120,7 @@ database:
 redis:
   host: "localhost"
   port: 6379
-  password: ""
+  password: "bakaray-redis-password"
   db: 0
   pool_size: 10
 

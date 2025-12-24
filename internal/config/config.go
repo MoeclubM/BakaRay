@@ -68,7 +68,7 @@ func Load() (*Config, error) {
 		Redis: RedisConfig{
 			Host:      getEnv("REDIS_HOST", "localhost"),
 			Port:      getEnvInt("REDIS_PORT", 6379),
-			Password:  getEnv("REDIS_PASSWORD", ""),
+			Password:  getEnv("REDIS_PASSWORD", "bakaray-redis-password"),
 			DB:        getEnvInt("REDIS_DB", 0),
 			PoolSize:  getEnvInt("REDIS_POOL_SIZE", 10),
 		},

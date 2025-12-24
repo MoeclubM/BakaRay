@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"bakaray/internal/config"
 	"bakaray/internal/models"
@@ -20,7 +21,11 @@ var DB *gorm.DB
 // NewDB 创建数据库连接（仅支持 SQLite）
 func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	// 确保目录存在
-	if err := os.MkdirAll("data", 0755); err != nil {
+	dataDir := cfg.Path
+	if !filepath.IsAbs(cfg.Path) {
+		dataDir = "/app/" + cfg.Path
+	}
+	if err := os.MkdirAll(filepath.Dir(dataDir), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create data directory: %w", err)
 	}
 

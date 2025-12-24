@@ -1,24 +1,22 @@
+# BakaRay Docker Compose 配置
+# 使用 SQLite (默认): docker-compose up -d
+# 使用 MySQL + Redis: docker-compose -f docker-compose.yml -f docker-compose.mysql.yml up -d
+
 services:
-  # BakaRay 管理面板
-  panel:
+  # BakaRay 管理面板 (SQLite 模式)
+  bakaray-panel:
     build:
       context: .
       dockerfile: Dockerfile.panel
     container_name: bakaray-panel
     ports:
-      - "8080:8080"
+      - "8500:8080"
     environment:
-      # 数据库配置 (外部 MySQL/MariaDB)
-      - DB_HOST=${DB_HOST:-mysql}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_USER=${DB_USER:-root}
-      - DB_PASSWORD=${DB_PASSWORD:-password}
-      - DB_NAME=${DB_NAME:-bakaray}
-      # Redis 配置
-      - REDIS_HOST=${REDIS_HOST:-redis}
-      - REDIS_PORT=${REDIS_PORT:-6379}
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      - REDIS_DB=${REDIS_DB:-0}
+      # 数据库配置 (SQLite 模式)
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DB_PATH=${DB_PATH:-data/bakaray.db}
+      # Redis 配置 (可选，设置为空则禁用)
+      - REDIS_HOST=${REDIS_HOST:-}
       # 服务配置
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8080
@@ -29,60 +27,21 @@ services:
       - NODE_SECRET=${NODE_SECRET:-change-this-secret-in-production}
       - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
     volumes:
+      - bakaray_data:/app/data
       - bakaray_logs:/app/logs
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    networks:
-      - bakaray_net
-    restart: unless-stopped
-
-  # MySQL 数据库
-  mysql:
-    image: mysql:8.0
-    container_name: bakaray-mysql
-    environment:
-      - MYSQL_ROOT_PASSWORD=${DB_PASSWORD:-password}
-      - MYSQL_DATABASE=${DB_NAME:-bakaray}
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./migrations:/docker-entrypoint-initdb.d:ro
-    ports:
-      - "3306:3306"
     networks:
       - bakaray_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-password}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis 缓存
-  redis:
-    image: redis:7-alpine
-    container_name: bakaray-redis
-    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    networks:
-      - bakaray_net
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
 networks:
   bakaray_net:
     driver: bridge
 
 volumes:
-  mysql_data:
-  redis_data:
+  bakaray_data:
   bakaray_logs:

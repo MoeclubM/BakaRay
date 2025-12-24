@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"bakaray/internal/config"
@@ -11,6 +12,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -23,6 +25,12 @@ func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	var dialector gorm.Dialector
 
 	switch cfg.Type {
+	case "sqlite", "sqlite3":
+		// 确保目录存在
+		if err := os.MkdirAll("data", 0755); err != nil {
+			return nil, fmt.Errorf("failed to create data directory: %w", err)
+		}
+		dialector = sqlite.Open(cfg.Path)
 	case "mysql":
 		dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			cfg.Username, cfg.Password, cfg.Host, cfg.Port, cfg.Name)
@@ -47,9 +55,12 @@ func NewDB(cfg config.DatabaseConfig) (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to get sql.DB: %w", err)
 	}
 
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
-	sqlDB.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
+	// SQLite 不需要连接池配置
+	if cfg.Type != "sqlite" && cfg.Type != "sqlite3" {
+		sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(time.Duration(cfg.ConnMaxLifetime) * time.Second)
+	}
 
 	DB = db
 	return db, nil

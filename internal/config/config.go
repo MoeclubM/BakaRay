@@ -26,6 +26,7 @@ type ServerConfig struct {
 // DatabaseConfig 数据库配置
 type DatabaseConfig struct {
 	Type            string `yaml:"type"`
+	Path            string `yaml:"path"` // SQLite 数据库文件路径
 	Host            string `yaml:"host"`
 	Port            int    `yaml:"port"`
 	Username        string `yaml:"username"`
@@ -69,7 +70,8 @@ func Load() (*Config, error) {
 			Mode: getEnv("SERVER_MODE", "debug"),
 		},
 		Database: DatabaseConfig{
-			Type:     getEnv("DB_TYPE", "mysql"),
+			Type:     getEnv("DB_TYPE", "sqlite"),
+			Path:     getEnv("DB_PATH", "data/bakaray.db"),
 			Host:     getEnv("DB_HOST", "localhost"),
 			Port:     getEnvInt("DB_PORT", 3306),
 			Username: getEnv("DB_USERNAME", "root"),

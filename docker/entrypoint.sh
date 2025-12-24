@@ -9,6 +9,7 @@ CONFIG_FILE="/app/config.yaml"
 echo "Generating config from template..."
 envsubst < "${CONFIG_TEMPLATE}" > "${CONFIG_FILE}"
 chmod 644 "${CONFIG_FILE}"
+export CONFIG_FILE
 
 # 打印配置信息
 echo "Configuration generated:"
@@ -20,12 +21,13 @@ echo "  Redis host: ${REDIS_HOST:-bakaray-redis}"
 # 确保数据目录存在
 mkdir -p /app/data /app/logs
 
-# 初始化数据库（如果不存在）
-DB_FILE="${DB_PATH:-/app/data/bakaray.db}"
-if [ ! -f "$DB_FILE" ]; then
-    echo "Creating new database..."
-    # 手动创建数据库表
-    /app/panel --init-db || echo "Warning: Database initialization skipped."
+# 如果提供初始化账号参数，优先创建初始用户
+if [[ -n "${INIT_USERNAME}" && -n "${INIT_PASSWORD}" ]]; then
+    echo "Creating initial user ${INIT_USERNAME}..."
+    INIT_CMD=(/app/init-account --username "${INIT_USERNAME}" --password "${INIT_PASSWORD}")
+    [[ -n "${INIT_ROLE}" ]] && INIT_CMD+=(--role "${INIT_ROLE}")
+    [[ -n "${INIT_GROUP}" ]] && INIT_CMD+=(--group "${INIT_GROUP}")
+    "${INIT_CMD[@]}"
 fi
 
 # 启动服务

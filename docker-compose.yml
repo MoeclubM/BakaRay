@@ -28,6 +28,10 @@ services:
       # 节点配置
       - NODE_SECRET=${NODE_SECRET:-change-this-secret-in-production}
       - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
+      - INIT_USERNAME=${INIT_USERNAME:-}
+      - INIT_PASSWORD=${INIT_PASSWORD:-}
+      - INIT_ROLE=${INIT_ROLE:-admin}
+      - INIT_GROUP=${INIT_GROUP:-0}
     volumes:
       - bakaray_data:/app/data
       - bakaray_logs:/app/logs

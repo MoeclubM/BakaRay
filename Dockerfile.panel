@@ -15,6 +15,7 @@ COPY . .
 
 # 编译后端（启用 CGO 以支持 SQLite）
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o panel ./cmd/server
+RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o init-account ./cmd/init-account
 
 # 构建前端
 WORKDIR /app/frontend
@@ -37,6 +38,7 @@ RUN mkdir -p /app/data /app/logs && chown -R app:app /app
 
 # 复制编译产物
 COPY --from=builder /app/panel /app/panel
+COPY --from=builder /app/init-account /app/init-account
 
 # 复制前端构建产物
 COPY --from=builder /app/frontend/dist /app/public

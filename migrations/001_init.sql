@@ -197,10 +197,6 @@ CREATE TABLE IF NOT EXISTS `traffic_logs` (
     INDEX `idx_timestamp` (`timestamp`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='流量日志表';
 
--- 插入默认管理员用户（密码: admin123）
-INSERT INTO `users` (`username`, `password_hash`, `balance`, `role`) VALUES
-('admin', 'admin123', 0, 'admin');
-
 -- 插入默认站点配置
 INSERT INTO `site_config` (`site_name`, `site_domain`, `node_secret`, `node_report_interval`) VALUES
 ('BakaRay', 'http://localhost:8080', 'your-node-secret-key', 30);

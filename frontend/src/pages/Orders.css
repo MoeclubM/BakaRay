@@ -1,0 +1,70 @@
+.orders-page h1 {
+  margin-bottom: 30px;
+  color: #333;
+}
+
+.orders-table-container {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.orders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.orders-table th,
+.orders-table td {
+  padding: 15px 20px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.orders-table th {
+  background: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.orders-table td {
+  color: #666;
+}
+
+.trade-no {
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.amount {
+  font-weight: 600;
+  color: #667eea;
+}
+
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-badge.pending {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.status-badge.success {
+  background: #e6f7e6;
+  color: #28a745;
+}
+
+.status-badge.failed {
+  background: #fee;
+  color: #dc3545;
+}
+
+.time {
+  font-size: 13px;
+  color: #999;
+}

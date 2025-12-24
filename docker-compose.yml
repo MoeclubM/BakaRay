@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # BakaRay 管理面板
+  panel:
+    image: bakaray/panel:latest
+    container_name: bakaray-panel
+    ports:
+      - "8080:8080"
+    environment:
+      # 配置文件路径
+      - CONFIG_FILE=/app/config.yaml
+      # 数据库配置 (外部 MySQL/MariaDB)
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-password}
+      - DB_NAME=${DB_NAME:-bakaray}
+      # Redis 配置
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      # 服务配置
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=${SERVER_MODE:-debug}
+      # JWT 配置
+      - JWT_SECRET=${JWT_SECRET:-your-jwt-secret-key}
+      # 节点配置
+      - NODE_SECRET=${NODE_SECRET:-your-node-secret-key}
+    volumes:
+      - ./config/config.yaml:/app/config.yaml:ro
+      - bakaray_logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: bakaray-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  bakaray_net:
+    driver: bridge
+
+volumes:
+  redis_data:
+  bakaray_logs:

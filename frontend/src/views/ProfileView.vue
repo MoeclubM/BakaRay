@@ -12,17 +12,16 @@
             <div class="text-h5">{{ user?.username }}</div>
             <div class="text-grey">{{ user?.email || '未设置邮箱' }}</div>
 
-            <v-chip v-if="user?.is_admin" color="warning" class="mt-2">
-              <v-icon start size="small">mdi-shield-crown</v-icon>
-              管理员
-            </v-chip>
-
             <v-divider class="my-4" />
 
             <div class="text-h4 font-weight-bold text-primary">
-              {{ formatBytes(user?.balance || 0) }}
+              {{ formatBytes(user?.traffic_balance || 0) }}
             </div>
             <div class="text-grey">剩余流量</div>
+
+            <div class="text-body-2 text-grey mt-2">
+              余额：¥{{ (user?.balance || 0) / 100 }}
+            </div>
 
             <v-btn color="primary" variant="tonal" class="mt-4" to="/packages">
               <v-icon start>mdi-cart-plus</v-icon>
@@ -163,11 +162,14 @@ async function changePassword() {
 
   changingPassword.value = true
   try {
-    // 这里应该调用修改密码的 API
+    await userAPI.changePassword({
+      old_password: passwordForm.value.old_password,
+      new_password: passwordForm.value.new_password
+    })
     showSnackbar('密码修改成功', 'success')
     passwordForm.value = { old_password: '', new_password: '', confirm_password: '' }
   } catch (error) {
-    showSnackbar(error.message || '修改失败', 'error')
+    showSnackbar(error.response?.data?.message || error.message || '修改失败', 'error')
   } finally {
     changingPassword.value = false
   }

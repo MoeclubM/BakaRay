@@ -28,15 +28,19 @@
           <v-list-item prepend-icon="mdi-account" :title="user?.username" :subtitle="user?.email" />
           <v-divider />
           <v-list-item prepend-icon="mdi-account-circle" title="个人中心" to="/profile" />
-          <v-list-item v-if="isAdmin" prepend-icon="mdi-cog" title="管理后台" to="/admin" />
           <v-divider />
           <v-list-item prepend-icon="mdi-logout" title="退出登录" @click="logout" />
         </v-list>
       </v-menu>
     </v-app-bar>
 
-    <!-- 侧边导航栏 -->
-    <v-navigation-drawer v-model="drawer" temporary>
+    <!-- 侧边导航栏 - PC端默认展开 -->
+    <v-navigation-drawer
+      v-model="drawer"
+      :rail="rail && isDesktop"
+      :permanent="isDesktop"
+      :temporary="!isDesktop"
+    >
       <v-list nav>
         <v-list-item
           v-for="item in menuItems"
@@ -45,25 +49,10 @@
           :prepend-icon="item.icon"
           :title="item.title"
           :value="item.title"
+          :class="item.admin ? 'text-primary font-weight-bold' : ''"
           rounded="lg"
         />
       </v-list>
-
-      <template v-if="isAdmin">
-        <v-divider class="my-2" />
-        <v-list-subheader>管理后台</v-list-subheader>
-        <v-list nav>
-          <v-list-item
-            v-for="item in adminMenuItems"
-            :key="item.title"
-            :to="item.to"
-            :prepend-icon="item.icon"
-            :title="item.title"
-            :value="item.title"
-            rounded="lg"
-          />
-        </v-list>
-      </template>
     </v-navigation-drawer>
 
     <!-- 主内容区 -->
@@ -80,35 +69,41 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useTheme } from 'vuetify'
+import { useTheme, useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/api'
 
 const router = useRouter()
 const theme = useTheme()
+const display = useDisplay()
 const authStore = useAuthStore()
 
-const drawer = ref(false)
+const drawer = ref(true)
+const rail = ref(false)
 const siteName = ref('BakaRay')
+
+const isDesktop = computed(() => display.mdAndUp.value)
 
 const isDark = computed(() => theme.global.current.value.dark)
 const user = computed(() => authStore.user)
-const isAdmin = computed(() => authStore.isAdmin)
 
 const userInitials = computed(() => {
   if (!user.value?.username) return '?'
   return user.value.username.substring(0, 2).toUpperCase()
 })
 
-const menuItems = [
-  { title: '仪表盘', icon: 'mdi-view-dashboard', to: '/' },
-  { title: '节点列表', icon: 'mdi-server-network', to: '/nodes' },
-  { title: '转发规则', icon: 'mdi-routes', to: '/rules' },
-  { title: '套餐购买', icon: 'mdi-package-variant', to: '/packages' },
-  { title: '我的订单', icon: 'mdi-receipt', to: '/orders' }
-]
+const menuItems = computed(() => {
+  return [
+    { title: '仪表盘', icon: 'mdi-view-dashboard', to: '/' },
+    { title: '节点列表', icon: 'mdi-server-network', to: '/nodes' },
+    { title: '转发规则', icon: 'mdi-routes', to: '/rules' },
+    { title: '充值中心', icon: 'mdi-wallet', to: '/deposit' },
+    { title: '套餐购买', icon: 'mdi-package-variant', to: '/packages' },
+    { title: '我的订单', icon: 'mdi-receipt', to: '/orders' }
+  ]
+})
 
 const adminMenuItems = [
   { title: '概览', icon: 'mdi-chart-bar', to: '/admin' },

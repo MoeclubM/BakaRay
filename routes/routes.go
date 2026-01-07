@@ -42,6 +42,7 @@ func Setup(
 			user := protected.Group("/user")
 			user.GET("/profile", userHandler.GetProfile)
 			user.PUT("/profile", userHandler.UpdateProfile)
+			user.POST("/change-password", userHandler.ChangePassword)
 
 			// 节点模块
 			nodes := protected.Group("/nodes")
@@ -90,22 +91,14 @@ func Setup(
 		admin.Use(authMiddleware.Authenticate(), authMiddleware.AdminRequired())
 		{
 			// 管理员统计
+			admin.GET("/stats/overview", adminHandler.GetOverviewStats)
 			admin.GET("/rules/count", ruleHandler.CountRules)
 
 			// 站点配置
 			site := admin.Group("/site")
 			{
-				site.GET("", func(c *gin.Context) {
-					c.JSON(200, gin.H{"code": 0, "data": gin.H{
-						"site_name":           "BakaRay",
-						"site_domain":         "http://localhost:8080",
-						"node_secret":         "your-node-secret-key",
-						"node_report_interval": 30,
-					}})
-				})
-				site.PUT("", func(c *gin.Context) {
-					c.JSON(200, gin.H{"code": 0, "message": "更新成功"})
-				})
+				site.GET("", adminHandler.GetSiteConfig)
+				site.PUT("", adminHandler.UpdateSiteConfig)
 			}
 
 			// 支付配置

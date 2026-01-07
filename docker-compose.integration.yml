@@ -1,0 +1,196 @@
+# BakaRay 完整集成测试 Docker Compose 配置
+# 运行完整测试: docker-compose -f docker-compose.integration.yml up --build -d
+# 运行测试: docker-compose -f docker-compose.integration.yml run integration-test
+# 停止测试: docker-compose -f docker-compose.integration.yml down -v
+
+services:
+  # 主面板（被转发目标）
+  bakaray-panel:
+    build:
+      context: .
+      dockerfile: Dockerfile.panel
+    container_name: bakaray-integration-panel
+    ports:
+      - "8500:80"       # 面板HTTP端口
+      - "18080:18080"   # gost入口监听端口
+    environment:
+      - DB_TYPE=mysql
+      - DB_HOST=bakaray-mysql
+      - DB_PORT=3306
+      - DB_USERNAME=root
+      - DB_PASSWORD=bakaray-test-pass
+      - DB_NAME=bakaray_test
+      - REDIS_HOST=bakaray-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=bakaray-test-redis
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=debug
+      - JWT_SECRET=integration-test-jwt-secret-2024
+      - NODE_SECRET=integration-test-node-secret-2024
+      - NODE_REPORT_INTERVAL=5
+      - INIT_USERNAME=admin
+      - INIT_PASSWORD=admin123
+      - INIT_ROLE=admin
+    volumes:
+      - panel_data:/app/data
+    depends_on:
+      bakaray-mysql:
+        condition: service_healthy
+      bakaray-redis:
+        condition: service_healthy
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.10
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  # MySQL 数据库
+  bakaray-mysql:
+    image: mysql:8.0
+    container_name: bakaray-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=bakaray-test-pass
+      - MYSQL_DATABASE=bakaray_test
+      - MYSQL_COLLATE=utf8mb4_unicode_ci
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.11
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pbakaray-test-pass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # Redis 缓存
+  bakaray-redis:
+    image: redis:7-alpine
+    container_name: bakaray-redis
+    command: redis-server --appendonly yes --requirepass bakaray-test-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.12
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "bakaray-test-redis", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Gost 入口节点 - 接收用户请求并转发到出口节点
+  gost-entry:
+    image: gogost/gost:latest
+    container_name: gost-entry
+    # 入口节点监听18080，转发到出口节点的18081
+    command: ["gost", "-L=://:18080", "-F=forward+http://gost-exit:18081"]
+    ports:
+      - "18080:18080"
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.20
+    depends_on:
+      bakaray-panel:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 18080 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Gost 出口节点 - 实际连接到目标服务
+  gost-exit:
+    image: gogost/gost:latest
+    container_name: gost-exit
+    # 出口节点监听18081，转发到面板8080
+    command: ["gost", "-L=forward+http://bakaray-panel:8080"]
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.21
+    depends_on:
+      bakaray-panel:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nc -z localhost 18081 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # 集成测试容器 - 在容器内运行完整测试
+  integration-test:
+    image: golang:1.25-alpine
+    container_name: bakaray-integration-test
+    command: sh -c "apk add --no-cache curl jq bash && sleep 5 && /app/run_full_test.sh"
+    volumes:
+      - ./:/app
+      - ./run_full_test.sh:/app/run_full_test.sh
+    depends_on:
+      bakaray-panel:
+        condition: service_healthy
+      gost-entry:
+        condition: service_healthy
+      gost-exit:
+        condition: service_healthy
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.30
+    environment:
+      - PANEL_URL=http://bakaray-panel:8080
+      - PANEL_EXT_URL=http://localhost:8500
+      - GOST_ENTRY_HOST=gost-entry
+      - GOST_ENTRY_PORT=18080
+      - TEST_USER=testuser
+      - TEST_PASS=password123
+      - ADMIN_USER=admin
+      - ADMIN_PASS=admin123
+    working_dir: /app
+
+  # 单元测试容器 - 使用真实数据库
+  unit-test-with-db:
+    image: golang:1.25-alpine
+    container_name: bakaray-unit-test-with-db
+    command: sh -c "apk add --no-cache git mysql-client && sleep 10 && /app/run_unit_tests.sh"
+    volumes:
+      - ./:/app
+      - ./run_unit_tests.sh:/app/run_unit_tests.sh
+    depends_on:
+      bakaray-mysql:
+        condition: service_healthy
+      bakaray-redis:
+        condition: service_healthy
+    networks:
+      bakaray_test_net:
+        ipv4_address: 172.28.0.31
+    environment:
+      - DB_HOST=bakaray-mysql
+      - DB_PORT=3306
+      - DB_USERNAME=root
+      - DB_PASSWORD=bakaray-test-pass
+      - DB_NAME=bakaray_test
+      - REDIS_HOST=bakaray-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=bakaray-test-redis
+    working_dir: /app
+
+networks:
+  bakaray_test_net:
+    name: bakaray_test_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  panel_data:
+  mysql_data:
+  redis_data:

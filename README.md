@@ -1,18 +1,26 @@
 # BakaRay
-A panel to manage forward rules.
 
-## Setup
+Go + Gin 后端 + Vue 3 + Vite + Vuetify 前端的转发管理面板（Panel）。
 
-1. Copy `.env.example` to `.env` and tweak database/Redis/site values. `DB_TYPE` controls whether SQLite (default) or MySQL/MariaDB is used; the SQL credentials (`DB_HOST`, `DB_PORT`, `DB_USERNAME`, `DB_PASSWORD`, `DB_NAME`) are only required for the latter.
-2. Build the server with `go build ./cmd/server`.
-3. Create an initial user via the provided script:
-   ```bash
-   go run ./cmd/init-account --username admin --password some-secret
-   ```
-   The script reads the same configuration as the server and will refuse to run unless both username and password are supplied.
+## 功能概览
 
-## Docker notes
+- 用户：注册/登录/刷新 Token、个人信息、修改密码、流量统计
+- 节点：节点列表/详情、节点心跳/上报、下发规则配置
+- 规则：转发规则 CRUD（含 targets、gost/iptables 配置记录）
+- 支付：套餐/订单/充值、epay（彩虹易支付）回调校验
+- 管理后台：节点/节点组、用户/用户组、套餐、订单、支付配置、站点配置
 
-- `docker-compose.yml` builds `Dockerfile.panel`, generates `/app/config.yaml` via `docker/entrypoint.sh`, mounts `/app/data` and `/app/logs`, and runs `/app/panel`.
-- Set `INIT_USERNAME` and `INIT_PASSWORD` (and optionally `INIT_ROLE`/`INIT_GROUP`) before `docker-compose up` to have the entrypoint bootstrap the admin user in the same container; the values are listed in `.env.example`.
-- You can also run `docker compose exec bakaray-panel /app/init-account --username user --password secret` after the stack is up to create more accounts without stopping the services.
+## 本地运行
+
+1. 复制并编辑环境变量：`cp .env.example .env`
+2. 启动后端：`go run ./cmd/server`
+3. 启动前端：
+   - `cd frontend`
+   - `npm run dev`
+
+## Docker
+
+- `docker compose up -d`
+
+Panel 镜像会在构建阶段执行 `frontend` 的 `npm install && npm run build`，并将 `dist` 产物打包到容器中。
+

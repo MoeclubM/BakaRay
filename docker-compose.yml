@@ -6,11 +6,11 @@ services:
   # BakaRay 管理面板
   bakaray-panel:
     build:
-      context: .
-      dockerfile: Dockerfile.panel
+      context: ..
+      dockerfile: BakaRay/Dockerfile.panel
     container_name: bakaray-panel
     ports:
-      - "8500:8080"
+      - "8500:80"
     environment:
       # 数据库配置 (SQLite 模式)
       - DB_TYPE=${DB_TYPE:-sqlite}
@@ -28,8 +28,8 @@ services:
       # 节点配置
       - NODE_SECRET=${NODE_SECRET:-change-this-secret-in-production}
       - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
-      - INIT_USERNAME=${INIT_USERNAME:-}
-      - INIT_PASSWORD=${INIT_PASSWORD:-}
+      - INIT_USERNAME=${INIT_USERNAME:-admin}
+      - INIT_PASSWORD=${INIT_PASSWORD:-admin123}
       - INIT_ROLE=${INIT_ROLE:-admin}
       - INIT_GROUP=${INIT_GROUP:-0}
     volumes:
@@ -65,6 +65,7 @@ services:
 
 networks:
   bakaray_net:
+    name: bakaray_net
     driver: bridge
 
 volumes:

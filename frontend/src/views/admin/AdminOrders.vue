@@ -46,6 +46,13 @@
             </v-list>
           </v-menu>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-receipt-text-outline</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无订单</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 

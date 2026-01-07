@@ -1,0 +1,69 @@
+# 仅启动面板（不含节点）
+services:
+  bakaray-panel:
+    image: bakaray-panel:latest
+    container_name: bakaray-panel
+    ports:
+      - "8500:80"
+    environment:
+      - DB_TYPE=sqlite
+      - DB_PATH=/app/data/bakaray.db
+      - REDIS_HOST=bakaray-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=bakaray-redis-password
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=debug
+      - JWT_SECRET=test-jwt-secret-change-in-production
+      - NODE_SECRET=test-node-secret-change-in-production
+      - NODE_REPORT_INTERVAL=10
+      - INIT_USERNAME=admin
+      - INIT_PASSWORD=admin123
+      - INIT_ROLE=admin
+      - INIT_GROUP=0
+    volumes:
+      - bakaray_data:/app/data
+      - bakaray_logs:/app/logs
+    depends_on:
+      bakaray-redis:
+        condition: service_healthy
+    networks:
+      bakaray_net:
+        ipv4_address: 172.28.0.10
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  bakaray-redis:
+    image: redis:7-alpine
+    container_name: bakaray-redis
+    command: redis-server --appendonly yes --requirepass bakaray-redis-password
+    ports:
+      - "6380:6379"
+    volumes:
+      - bakaray_redis_data:/data
+    networks:
+      bakaray_net:
+        ipv4_address: 172.28.0.12
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "bakaray-redis-password", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  bakaray_net:
+    name: bakaray_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  bakaray_data:
+  bakaray_redis_data:
+  bakaray_logs:

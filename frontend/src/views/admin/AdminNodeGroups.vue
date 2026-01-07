@@ -29,6 +29,13 @@
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-lan-disconnect</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无节点组</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -86,6 +93,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
+
+const { showSnackbar } = useSnackbar()
 
 const groups = ref([])
 const loading = ref(false)
@@ -141,13 +151,16 @@ async function saveGroup() {
   try {
     if (editingGroup.value) {
       await adminAPI.nodeGroups.update(editingGroup.value.id, form.value)
+      showSnackbar('节点组更新成功', 'success')
     } else {
       await adminAPI.nodeGroups.create(form.value)
+      showSnackbar('节点组创建成功', 'success')
     }
     closeDialog()
     loadGroups()
   } catch (error) {
     console.error('Failed to save group:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }
@@ -159,11 +172,13 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await adminAPI.nodeGroups.delete(deletingGroup.value.id)
+    showSnackbar('节点组删除成功', 'success')
     showDeleteDialog.value = false
     deletingGroup.value = null
     loadGroups()
   } catch (error) {
     console.error('Failed to delete group:', error)
+    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -176,6 +191,7 @@ async function loadGroups() {
     groups.value = response.data || []
   } catch (error) {
     console.error('Failed to load groups:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载节点组失败', 'error')
   } finally {
     loading.value = false
   }

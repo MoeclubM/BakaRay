@@ -35,6 +35,13 @@
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-package-variant-closed</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无套餐</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -103,6 +110,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
+
+const { showSnackbar } = useSnackbar()
 
 const packages = ref([])
 const userGroups = ref([])
@@ -171,13 +181,16 @@ async function savePackage() {
 
     if (editingPackage.value) {
       await adminAPI.packages.update(editingPackage.value.id, data)
+      showSnackbar('套餐更新成功', 'success')
     } else {
       await adminAPI.packages.create(data)
+      showSnackbar('套餐创建成功', 'success')
     }
     closeDialog()
     loadPackages()
   } catch (error) {
     console.error('Failed to save package:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }
@@ -189,11 +202,13 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await adminAPI.packages.delete(deletingPackage.value.id)
+    showSnackbar('套餐删除成功', 'success')
     showDeleteDialog.value = false
     deletingPackage.value = null
     loadPackages()
   } catch (error) {
     console.error('Failed to delete package:', error)
+    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -206,6 +221,7 @@ async function loadPackages() {
     packages.value = response.data || []
   } catch (error) {
     console.error('Failed to load packages:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载套餐失败', 'error')
   } finally {
     loading.value = false
   }

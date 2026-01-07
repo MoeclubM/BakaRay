@@ -25,13 +25,15 @@
         <template v-slot:item.created_at="{ item }">
           {{ formatDate(item.created_at) }}
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-receipt-text-outline</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无订单</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
-
-    <div v-if="orders.length === 0 && !loading" class="text-center py-12">
-      <v-icon size="64" color="grey">mdi-receipt-text-outline</v-icon>
-      <div class="text-h6 mt-4 text-grey">暂无订单</div>
-    </div>
   </div>
 </template>
 

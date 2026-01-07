@@ -73,7 +73,8 @@ func NewRedis(cfg config.RedisConfig) (*redis.Client, error) {
 
 // AutoMigrate 自动迁移数据库表
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	// 先执行自动迁移
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.UserGroup{},
 		&models.Node{},
@@ -89,5 +90,69 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.PaymentProvider{},
 		&models.SiteConfig{},
 		&models.TrafficLog{},
-	)
+	); err != nil {
+		return err
+	}
+
+	// SQLite 手动添加新列（GORM AutoMigrate 对 SQLite 支持有限）
+	return addMissingColumns(db)
+}
+
+// addMissingColumns 确保数据库有新添加的列
+func addMissingColumns(db *gorm.DB) error {
+	// 为 Package 表添加 visible 和 renewable 列
+	columns := []struct {
+		Name    string
+		Type    string
+		Default string
+	}{
+		{"visible", "BOOLEAN", "1"},
+		{"renewable", "BOOLEAN", "0"},
+	}
+
+	// 检测数据库类型
+	isMySQL := db.Config.Dialector.Name() == "mysql"
+
+	for _, col := range columns {
+		var exists bool
+		var err error
+
+		if isMySQL {
+			// MySQL: 使用 information_schema 检查列是否存在
+			var count int64
+			query := fmt.Sprintf("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '%s'", col.Name)
+			err = db.Raw(query).Scan(&count).Error
+			exists = count > 0
+		} else {
+			// SQLite: 使用 PRAGMA table_info
+			var count int64
+			query := fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('packages') WHERE name='%s'", col.Name)
+			err = db.Raw(query).Scan(&count).Error
+			exists = count > 0
+		}
+
+		if err != nil {
+			continue
+		}
+
+		if !exists {
+			if isMySQL {
+				// MySQL: 使用 ALTER TABLE ADD COLUMN
+				addQuery := fmt.Sprintf("ALTER TABLE packages ADD COLUMN %s %s DEFAULT %s", col.Name, col.Type, col.Default)
+				if err := db.Exec(addQuery).Error; err != nil {
+					// 忽略错误（列可能已存在）
+					continue
+				}
+			} else {
+				// SQLite: 使用 ALTER TABLE ADD COLUMN
+				addQuery := fmt.Sprintf("ALTER TABLE packages ADD COLUMN %s %s DEFAULT %s", col.Name, col.Type, col.Default)
+				if err := db.Exec(addQuery).Error; err != nil {
+					// 忽略错误（列可能已存在）
+					continue
+				}
+			}
+		}
+	}
+
+	return nil
 }

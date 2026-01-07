@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
+	"os"
 
 	"bakaray/internal/config"
 	"bakaray/internal/handlers"
+	"bakaray/internal/logger"
 	"bakaray/internal/middleware"
 	"bakaray/internal/repository"
 	"bakaray/internal/services"
@@ -18,16 +19,27 @@ func init() {
 }
 
 func main() {
-	// 加载配置
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	if err := logger.Init(os.Getenv("LOG_LEVEL")); err != nil {
+		logger.Error("Failed to initialize logger", err)
+		os.Exit(1)
 	}
 
-	// 初始化数据库
+	cfg, err := config.Load()
+	if err != nil {
+		logger.Error("Failed to load config", err)
+		os.Exit(1)
+	}
+
 	db, err := repository.NewDB(cfg.Database)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Error("Failed to connect to database", err,
+			"db_type", cfg.Database.Type,
+			"db_host", cfg.Database.Host,
+			"db_port", cfg.Database.Port,
+			"db_name", cfg.Database.Name,
+			"db_path", cfg.Database.Path,
+		)
+		os.Exit(1)
 	}
 	defer func() {
 		sqlDB, _ := db.DB()
@@ -36,61 +48,58 @@ func main() {
 		}
 	}()
 
-	// 自动迁移数据库表
-	log.Println("Migrating database...")
+	logger.Info("Migrating database...")
 	if err := repository.AutoMigrate(db); err != nil {
-		log.Printf("Warning: Database migration failed: %v", err)
+		logger.Warn("Database migration failed", "error", err)
 	}
 
-	// 初始化 Redis (可选)
 	redis, err := repository.NewRedis(cfg.Redis)
 	if err != nil {
-		log.Printf("Warning: Failed to connect to Redis: %v (continuing without Redis)", err)
+		logger.Warn("Failed to connect to Redis", "error", err)
 		redis = nil
 	} else if redis != nil {
 		defer redis.Close()
 	}
 
-	// 初始化服务
 	userService := services.NewUserService(db, redis)
 	nodeService := services.NewNodeService(db, redis)
 	ruleService := services.NewRuleService(db, redis)
 	paymentService := services.NewPaymentService(db, redis)
 	paymentConfigService := services.NewPaymentConfigService(db)
+	siteConfigService := services.NewSiteConfigService(db)
 	nodeGroupService := services.NewNodeGroupService(db)
 	userGroupService := services.NewUserGroupService(db)
 
-	// 初始化处理器
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService, ruleService)
-	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService)
+	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService, userService)
 	ruleHandler := handlers.NewRuleHandler(ruleService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
-	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService)
+	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService, siteConfigService)
 
-	// 创建 Gin 引擎
 	r := gin.New()
 
-	// 自定义 MIME 类型中间件
 	r.Use(func(c *gin.Context) {
 		c.Header("X-Content-Type-Options", "nosniff")
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID != "" {
+			c.Set("request_id", requestID)
+			c.Header("X-Request-ID", requestID)
+		}
 		c.Next()
 	})
 
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
-	// 提供前端静态文件
 	r.Static("/public", "/app/public")
 	r.Static("/assets", "/app/public/assets")
 	r.Static("/vite.svg", "/app/public/vite.svg")
 
-	// 首页路由
 	r.GET("/", func(c *gin.Context) {
 		c.File("/app/public/index.html")
 	})
 
-	// Vue SPA 路由支持
 	frontendRoutes := []string{
 		"/login", "/register", "/dashboard", "/nodes", "/rules",
 		"/packages", "/orders", "/profile", "/deposit/callback",
@@ -104,7 +113,6 @@ func main() {
 		})
 	}
 
-	// 捕获所有前端路由（兜底）
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if len(path) > 4 && path[:4] != "/api" {
@@ -112,12 +120,11 @@ func main() {
 		}
 	})
 
-	// 注册 API 路由
 	routes.Setup(r, authHandler, userHandler, nodeHandler, ruleHandler, paymentHandler, adminHandler, middleware.NewAuthMiddleware(userService))
 
-	// 启动服务器
-	log.Printf("Server starting on %s:%s", cfg.Server.Host, cfg.Server.Port)
+	logger.Info("Server starting", "host", cfg.Server.Host, "port", cfg.Server.Port)
 	if err := r.Run(cfg.Server.Host + ":" + cfg.Server.Port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		logger.Error("Failed to start server", err)
+		os.Exit(1)
 	}
 }

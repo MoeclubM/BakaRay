@@ -17,47 +17,43 @@ COPY . .
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o panel ./cmd/server
 RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-s -w" -o init-account ./cmd/init-account
 
-# 构建前端
+# 构建前端（包含前后台）
 WORKDIR /app/frontend
 RUN npm install && npm run build
 
 # 返回工作目录
 WORKDIR /app
 
-# 运行阶段
-FROM alpine:latest
+# 运行阶段 - 使用 nginx
+FROM nginx:alpine
 
 # 安装运行时依赖
-RUN apk --no-cache add ca-certificates tzdata curl bash gettext
-
-# 创建非 root 用户
-RUN addgroup -g 1000 app && adduser -u 1000 -G app -s /bin/sh -D app
+RUN apk --no-cache add curl bash gettext
 
 # 创建数据目录
-RUN mkdir -p /app/data /app/logs && chown -R app:app /app
+RUN mkdir -p /app/data /app/logs /var/www/bakaray/admin && chown -R nginx:nginx /var/www/bakaray
 
-# 复制编译产物
+# 复制 nginx 配置
+COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+
+# 复制后端编译产物
 COPY --from=builder /app/panel /app/panel
 COPY --from=builder /app/init-account /app/init-account
 
-# 复制前端构建产物
-COPY --from=builder /app/frontend/dist /app/public
+# 复制前端构建产物（包含 /admin 路由）
+COPY --from=builder /app/frontend/dist /var/www/bakaray
 
-# 复制配置模板和启动脚本
-COPY --from=builder /app/config/ /app/config/
-COPY --from=builder /app/docker/entrypoint.sh /app/entrypoint.sh
-
+# 复制配置和启动脚本
+COPY config/ /app/config/
+COPY docker/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# 切换用户
-USER app
-
 # 暴露端口
-EXPOSE 8080
+EXPOSE 80
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost/health || exit 1
 
 # 启动入口
 ENTRYPOINT ["/app/entrypoint.sh"]

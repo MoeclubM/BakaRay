@@ -128,6 +128,13 @@ func (s *UserService) ListUsers(page, pageSize int) ([]models.User, int64) {
 	return users, total
 }
 
+// CountUsers 统计用户总数
+func (s *UserService) CountUsers() int64 {
+	var total int64
+	s.db.Model(&models.User{}).Count(&total)
+	return total
+}
+
 // hashPassword 使用 bcrypt 哈希密码
 func hashPassword(password string) string {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -162,4 +169,19 @@ func (s *UserService) UpdateUser(id uint, updates map[string]interface{}) error 
 // DeleteUser 删除用户
 func (s *UserService) DeleteUser(id uint) error {
 	return s.db.Delete(&models.User{}, id).Error
+}
+
+// ChangePassword 修改密码
+func (s *UserService) ChangePassword(id uint, oldPassword, newPassword string) error {
+	user, err := s.GetUserByID(id)
+	if err != nil {
+		return err
+	}
+
+	if !s.VerifyPassword(user, oldPassword) {
+		return ErrInvalidPassword
+	}
+
+	hash := hashPassword(newPassword)
+	return s.db.Model(&models.User{}).Where("id = ?", id).Update("password_hash", hash).Error
 }

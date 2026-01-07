@@ -60,6 +60,13 @@
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-traffic-light</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无规则</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -102,21 +109,60 @@
               class="mb-2"
             />
 
-            <v-row v-if="!editingRule">
-              <v-col cols="8">
+            <v-divider class="my-4" />
+
+            <div class="d-flex align-center mb-2">
+              <div class="text-subtitle-1 font-weight-bold">转发目标</div>
+              <v-spacer />
+              <v-btn size="small" variant="tonal" @click="addTarget">
+                <v-icon start>mdi-plus</v-icon>
+                添加目标
+              </v-btn>
+            </div>
+
+            <v-alert type="info" variant="tonal" density="compact" class="mb-3">
+              轮询（rr）与负载均衡（lb）支持多个目标；lb 会使用权重进行分流。
+            </v-alert>
+
+            <v-row v-for="(t, index) in form.targets" :key="index" class="mb-2">
+              <v-col cols="12" md="5">
                 <v-text-field
-                  v-model="form.target_host"
+                  v-model="t.host"
                   label="目标地址"
                   :rules="[v => !!v || '请输入目标地址']"
+                  density="compact"
                 />
               </v-col>
-              <v-col cols="4">
+              <v-col cols="12" md="3">
                 <v-text-field
-                  v-model.number="form.target_port"
+                  v-model.number="t.port"
                   label="目标端口"
                   type="number"
                   :rules="[v => v > 0 || '请输入有效端口']"
+                  density="compact"
                 />
+              </v-col>
+              <v-col cols="12" md="2">
+                <v-text-field
+                  v-model.number="t.weight"
+                  label="权重"
+                  type="number"
+                  min="1"
+                  density="compact"
+                />
+              </v-col>
+              <v-col cols="12" md="2" class="d-flex align-center">
+                <v-switch v-model="t.enabled" label="启用" density="compact" hide-details class="mr-2" />
+                <v-btn
+                  icon
+                  size="small"
+                  variant="text"
+                  color="error"
+                  :disabled="form.targets.length <= 1"
+                  @click="removeTarget(index)"
+                >
+                  <v-icon>mdi-delete</v-icon>
+                </v-btn>
               </v-col>
             </v-row>
 
@@ -143,6 +189,47 @@
               :items="modes"
               label="转发模式"
             />
+
+            <v-expand-transition>
+              <div v-if="form.protocol === 'gost'">
+                <v-divider class="my-4" />
+                <div class="text-subtitle-1 font-weight-bold mb-2">Gost 配置</div>
+                <v-row>
+                  <v-col cols="12" md="4">
+                    <v-select
+                      v-model="form.gost_config.transport"
+                      :items="['tcp', 'udp', 'quic']"
+                      label="传输类型"
+                    />
+                  </v-col>
+                  <v-col cols="12" md="4" class="d-flex align-center">
+                    <v-switch v-model="form.gost_config.tls" label="TLS" color="primary" hide-details />
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field v-model.number="form.gost_config.timeout" label="超时(秒)" type="number" min="0" />
+                  </v-col>
+                </v-row>
+                <v-text-field v-model="form.gost_config.chain" label="代理链(可选)" />
+              </div>
+            </v-expand-transition>
+
+            <v-expand-transition>
+              <div v-if="form.protocol === 'iptables'">
+                <v-divider class="my-4" />
+                <div class="text-subtitle-1 font-weight-bold mb-2">IPTables 配置</div>
+                <v-row>
+                  <v-col cols="12" md="4">
+                    <v-select v-model="form.iptables_config.proto" :items="['tcp', 'udp']" label="协议" />
+                  </v-col>
+                  <v-col cols="12" md="4" class="d-flex align-center">
+                    <v-switch v-model="form.iptables_config.snat" label="SNAT (MASQUERADE)" color="primary" hide-details />
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field v-model="form.iptables_config.iface" label="入站网卡(可选)" hint="例如 eth0" persistent-hint />
+                  </v-col>
+                </v-row>
+              </div>
+            </v-expand-transition>
 
             <v-switch
               v-model="form.enabled"
@@ -179,7 +266,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { ruleAPI, nodeAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
+
+const { showSnackbar } = useSnackbar()
 
 const rules = ref([])
 const nodes = ref([])
@@ -193,18 +283,32 @@ const editingRule = ref(null)
 const deletingRule = ref(null)
 const formRef = ref(null)
 
-const form = ref({
-  name: '',
-  node_id: null,
-  protocol: 'gost',
-  listen_port: 0,
-  target_host: '',
-  target_port: 0,
-  traffic_limit: 0,
-  speed_limit: 0,
-  mode: 'direct',
-  enabled: true
-})
+function defaultForm() {
+  return {
+    name: '',
+    node_id: null,
+    protocol: 'gost',
+    listen_port: 0,
+    targets: [{ host: '', port: 0, weight: 1, enabled: true }],
+    traffic_limit: 0,
+    speed_limit: 0,
+    mode: 'direct',
+    enabled: true,
+    gost_config: {
+      transport: 'tcp',
+      tls: false,
+      chain: '',
+      timeout: 0
+    },
+    iptables_config: {
+      proto: 'tcp',
+      snat: false,
+      iface: ''
+    }
+  }
+}
+
+const form = ref(defaultForm())
 
 const headers = [
   { title: '状态', key: 'enabled', width: 80 },
@@ -217,7 +321,16 @@ const headers = [
   { title: '操作', key: 'actions', width: 100 }
 ]
 
-const protocols = ['gost', 'iptables']
+const protocols = [
+  { title: 'TCP 转发 (forward)', value: 'forward' },
+  { title: 'SOCKS5 代理 (socks5)', value: 'socks5' },
+  { title: 'HTTP 代理 (http)', value: 'http' },
+  { title: 'Shadowsocks (ss)', value: 'ss' },
+  { title: 'QUIC', value: 'quic' },
+  { title: 'WebSocket (ws)', value: 'ws' },
+  { title: 'WebSocket Secure (wss)', value: 'wss' },
+  { title: 'HTTP/2 (http2)', value: 'http2' }
+]
 const modes = [
   { title: '直连', value: 'direct' },
   { title: '轮询', value: 'rr' },
@@ -248,15 +361,7 @@ function getTrafficColor(ratio) {
 }
 
 function editRule(rule) {
-  editingRule.value = rule
-  form.value = {
-    ...form.value,
-    ...rule,
-    traffic_limit: rule.traffic_limit ? rule.traffic_limit / (1024 * 1024 * 1024) : 0,
-    target_host: '',
-    target_port: 0
-  }
-  showCreateDialog.value = true
+  loadRuleDetail(rule.id)
 }
 
 function deleteRule(rule) {
@@ -267,17 +372,61 @@ function deleteRule(rule) {
 function closeDialog() {
   showCreateDialog.value = false
   editingRule.value = null
-  form.value = {
-    name: '',
-    node_id: null,
-    protocol: 'gost',
-    listen_port: 0,
-    target_host: '',
-    target_port: 0,
-    traffic_limit: 0,
-    speed_limit: 0,
-    mode: 'direct',
-    enabled: true
+  form.value = defaultForm()
+}
+
+function addTarget() {
+  form.value.targets.push({ host: '', port: 0, weight: 1, enabled: true })
+}
+
+function removeTarget(index) {
+  if (form.value.targets.length <= 1) return
+  form.value.targets.splice(index, 1)
+}
+
+async function loadRuleDetail(id) {
+  loading.value = true
+  try {
+    const body = await ruleAPI.get(id)
+    const detail = body?.code === 0 ? body.data : null
+    if (!detail?.rule) throw new Error('Invalid rule detail')
+
+    editingRule.value = detail.rule
+    form.value = {
+      ...defaultForm(),
+      name: detail.rule.name,
+      node_id: detail.rule.node_id,
+      protocol: detail.rule.protocol,
+      listen_port: detail.rule.listen_port,
+      traffic_limit: detail.rule.traffic_limit ? detail.rule.traffic_limit / (1024 * 1024 * 1024) : 0,
+      speed_limit: detail.rule.speed_limit || 0,
+      mode: detail.rule.mode || 'direct',
+      enabled: !!detail.rule.enabled,
+      targets: (detail.targets && detail.targets.length > 0) ? detail.targets.map((t) => ({
+        host: t.host,
+        port: t.port,
+        weight: t.weight ?? 1,
+        enabled: t.enabled !== false
+      })) : [{ host: '', port: 0, weight: 1, enabled: true }],
+      gost_config: detail.gost_config ? {
+        transport: detail.gost_config.transport || 'tcp',
+        tls: !!detail.gost_config.tls,
+        chain: detail.gost_config.chain || '',
+        timeout: detail.gost_config.timeout || 0
+      } : defaultForm().gost_config,
+      iptables_config: detail.iptables_config ? {
+        proto: detail.iptables_config.proto || 'tcp',
+        snat: !!detail.iptables_config.snat,
+        iface: detail.iptables_config.iface || ''
+      } : defaultForm().iptables_config
+    }
+
+    showCreateDialog.value = true
+  } catch (error) {
+    console.error('Failed to load rule detail:', error)
+    showSnackbar(error.message || '加载规则失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
@@ -287,31 +436,43 @@ async function saveRule() {
 
   saving.value = true
   try {
-    const data = { ...form.value }
+    const data = {
+      name: form.value.name,
+      node_id: form.value.node_id,
+      protocol: form.value.protocol,
+      listen_port: form.value.listen_port,
+      traffic_limit: Math.max(0, Math.round((Number(form.value.traffic_limit) || 0) * 1024 * 1024 * 1024)),
+      speed_limit: Math.max(0, Number(form.value.speed_limit) || 0),
+      mode: form.value.mode,
+      enabled: form.value.enabled,
+      targets: (form.value.targets || []).map((t) => ({
+        host: (t.host || '').trim(),
+        port: Number(t.port) || 0,
+        weight: Math.max(1, Number(t.weight) || 1),
+        enabled: t.enabled !== false
+      })).filter((t) => t.host && t.port > 0),
+      gost_config: form.value.protocol === 'gost' ? form.value.gost_config : null,
+      iptables_config: form.value.protocol === 'iptables' ? form.value.iptables_config : null
+    }
+
     if (!data.node_id) delete data.node_id
-    data.traffic_limit = data.traffic_limit * 1024 * 1024 * 1024
+    if (!data.targets || data.targets.length === 0) {
+      showSnackbar('请至少添加一个有效目标', 'error')
+      return
+    }
 
     if (editingRule.value) {
-      delete data.target_host
-      delete data.target_port
       await ruleAPI.update(editingRule.value.id, data)
+      showSnackbar('规则已更新', 'success')
     } else {
-      data.targets = [
-        {
-          host: form.value.target_host,
-          port: form.value.target_port,
-          weight: 1,
-          enabled: true
-        }
-      ]
-      delete data.target_host
-      delete data.target_port
       await ruleAPI.create(data)
+      showSnackbar('规则已创建', 'success')
     }
     closeDialog()
     loadRules()
   } catch (error) {
     console.error('Failed to save rule:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }

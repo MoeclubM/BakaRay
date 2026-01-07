@@ -2,6 +2,10 @@
   <div>
     <h1 class="text-h4 mb-6">仪表盘</h1>
 
+    <v-overlay v-model="loading" contained class="align-center justify-center">
+      <v-progress-circular indeterminate size="64" />
+    </v-overlay>
+
     <!-- 欢迎卡片 -->
     <v-card class="mb-4" color="primary" variant="tonal">
       <v-card-text>
@@ -12,7 +16,10 @@
           <div>
             <div class="text-h5">欢迎回来，{{ user?.username }}</div>
             <div class="text-grey">
-              剩余流量：<span class="text-primary font-weight-bold">{{ formatBytes(user?.balance || 0) }}</span>
+              剩余流量：<span class="text-primary font-weight-bold">{{ formatBytes(user?.traffic_balance || 0) }}</span>
+            </div>
+            <div v-if="userGroupName" class="text-grey text-caption mt-1">
+              用户组：<span class="text-info">{{ userGroupName }}</span>
             </div>
           </div>
           <v-spacer />
@@ -111,63 +118,40 @@
         </v-card>
       </v-col>
     </v-row>
-
-    <!-- 最近订单 -->
-    <v-card class="mt-4">
-      <v-card-title class="d-flex align-center">
-        <v-icon start>mdi-receipt-text</v-icon>
-        最近订单
-        <v-spacer />
-        <v-btn variant="text" color="primary" to="/orders">查看全部</v-btn>
-      </v-card-title>
-      <v-data-table
-        :headers="orderHeaders"
-        :items="recentOrders"
-        :items-per-page="5"
-        density="compact"
-      >
-        <template v-slot:item.status="{ item }">
-          <v-chip :color="getStatusColor(item.status)" size="small">
-            {{ getStatusText(item.status) }}
-          </v-chip>
-        </template>
-        <template v-slot:item.amount="{ item }">
-          ¥{{ item.amount / 100 }}
-        </template>
-        <template v-slot:item.created_at="{ item }">
-          {{ formatDate(item.created_at) }}
-        </template>
-      </v-data-table>
-    </v-card>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import { nodeAPI, ruleAPI, orderAPI, userAPI } from '@/api'
+import { nodeAPI, ruleAPI, userAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
 const authStore = useAuthStore()
+const { showSnackbar } = useSnackbar()
 
 const user = computed(() => authStore.user)
+const userGroupName = computed(() => {
+  const groupId = user.value?.user_group_id
+  if (!groupId) return '未分配'
+  // 简单处理，实际应从API获取用户组名称
+  return groupId === 1 ? '测试用户组' : `用户组 #${groupId}`
+})
+
 const nodes = ref([])
 const rules = ref([])
-const orders = ref([])
+const loading = ref(false)
 
 const trafficStats = ref({
   bytes_in: 0,
   bytes_out: 0
 })
-
-const recentOrders = computed(() => orders.value.slice(0, 5))
-
-const orderHeaders = [
-  { title: '订单号', key: 'trade_no' },
-  { title: '金额', key: 'amount' },
-  { title: '状态', key: 'status' },
-  { title: '创建时间', key: 'created_at' }
-]
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
@@ -177,42 +161,23 @@ function formatBytes(bytes) {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
-function formatDate(date) {
-  return dayjs(date).format('YYYY-MM-DD HH:mm')
-}
-
-function getStatusColor(status) {
-  const colors = {
-    pending: 'warning',
-    success: 'success',
-    failed: 'error'
-  }
-  return colors[status] || 'grey'
-}
-
-function getStatusText(status) {
-  const texts = {
-    pending: '待支付',
-    success: '已完成',
-    failed: '已失败'
-  }
-  return texts[status] || status
-}
-
 onMounted(async () => {
+  loading.value = true
   try {
-    const [nodesRes, rulesRes, ordersRes, trafficRes] = await Promise.all([
+    await authStore.fetchProfile()
+    const [nodesRes, rulesRes, trafficRes] = await Promise.all([
       nodeAPI.list(),
       ruleAPI.list(),
-      orderAPI.list(),
       userAPI.getTrafficStats({ days: 30 })
     ])
     nodes.value = nodesRes.data || []
     rules.value = rulesRes.data || []
-    orders.value = ordersRes.data || []
     trafficStats.value = trafficRes.data || { bytes_in: 0, bytes_out: 0 }
   } catch (error) {
     console.error('Failed to load dashboard data:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载数据失败', 'error')
+  } finally {
+    loading.value = false
   }
 })
 </script>

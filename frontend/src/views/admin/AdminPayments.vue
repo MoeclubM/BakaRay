@@ -9,6 +9,10 @@
       </v-btn>
     </div>
 
+    <v-overlay v-model="loading" contained class="align-center justify-center">
+      <v-progress-circular indeterminate size="64" />
+    </v-overlay>
+
     <v-row>
       <v-col v-for="payment in payments" :key="payment.id" cols="12" md="6" lg="4">
         <v-card :class="{ 'opacity-50': !payment.enabled }">
@@ -136,6 +140,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
+
+const { showSnackbar } = useSnackbar()
 
 const payments = ref([])
 const loading = ref(false)
@@ -197,13 +204,16 @@ async function savePayment() {
   try {
     if (editingPayment.value) {
       await adminAPI.payments.update(editingPayment.value.id, form.value)
+      showSnackbar('支付配置更新成功', 'success')
     } else {
       await adminAPI.payments.create(form.value)
+      showSnackbar('支付配置创建成功', 'success')
     }
     closeDialog()
     loadPayments()
   } catch (error) {
     console.error('Failed to save payment:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }
@@ -215,11 +225,13 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await adminAPI.payments.delete(deletingPayment.value.id)
+    showSnackbar('支付配置删除成功', 'success')
     showDeleteDialog.value = false
     deletingPayment.value = null
     loadPayments()
   } catch (error) {
     console.error('Failed to delete payment:', error)
+    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -229,8 +241,10 @@ async function togglePayment(payment) {
   try {
     await adminAPI.payments.update(payment.id, { enabled: !payment.enabled })
     payment.enabled = !payment.enabled
+    showSnackbar(payment.enabled ? '支付渠道已启用' : '支付渠道已禁用', 'success')
   } catch (error) {
     console.error('Failed to toggle payment:', error)
+    showSnackbar(error.response?.data?.message || error.message || '操作失败', 'error')
   }
 }
 
@@ -241,6 +255,7 @@ async function loadPayments() {
     payments.value = response.data || []
   } catch (error) {
     console.error('Failed to load payments:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载支付配置失败', 'error')
   } finally {
     loading.value = false
   }

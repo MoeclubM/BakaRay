@@ -5,6 +5,10 @@
       <v-spacer />
     </div>
 
+    <v-overlay v-model="loading" contained class="align-center justify-center">
+      <v-progress-circular indeterminate size="64" />
+    </v-overlay>
+
     <v-row>
       <v-col v-for="pkg in packages" :key="pkg.id" cols="12" md="6" lg="4">
         <v-card class="h-100">
@@ -15,7 +19,7 @@
 
           <v-card-text class="text-center">
             <div class="text-h3 font-weight-bold text-primary my-4">
-              ¥{{ pkg.price / 100 }}
+              ¥{{ (pkg.price / 100).toFixed(2) }}
             </div>
 
             <v-divider class="my-4" />
@@ -25,13 +29,23 @@
                 <template v-slot:prepend>
                   <v-icon color="success">mdi-arrow-down</v-icon>
                 </template>
-                <v-list-item-title>入站流量：{{ formatBytes(pkg.traffic) }}</v-list-item-title>
+                <v-list-item-title>流量：{{ formatBytes(pkg.traffic) }}</v-list-item-title>
+              </v-list-item>
+              <v-list-item v-if="pkg.user_group_name">
+                <template v-slot:prepend>
+                  <v-icon color="info">mdi-account-group</v-icon>
+                </template>
+                <v-list-item-title>{{ pkg.user_group_name }}</v-list-item-title>
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
-                  <v-icon color="info">mdi-arrow-up</v-icon>
+                  <v-icon :color="pkg.renewable ? 'success' : 'warning'">
+                    {{ pkg.renewable ? 'mdi-refresh' : 'mdi-lock' }}
+                  </v-icon>
                 </template>
-                <v-list-item-title>出站流量：{{ formatBytes(pkg.traffic) }}</v-list-item-title>
+                <v-list-item-title>
+                  {{ pkg.renewable ? '可续费' : '一次性' }}
+                </v-list-item-title>
               </v-list-item>
             </v-list>
           </v-card-text>
@@ -44,8 +58,9 @@
               size="large"
               @click="purchase(pkg)"
               :loading="purchasing === pkg.id"
+              :disabled="!pkg.visible"
             >
-              立即购买
+              {{ pkg.visible ? '立即购买' : '已下架' }}
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -57,34 +72,49 @@
       <div class="text-h6 mt-4 text-grey">暂无套餐</div>
     </div>
 
-    <!-- 支付对话框 -->
-    <v-dialog v-model="showPayDialog" max-width="500">
+    <!-- 支付确认对话框 -->
+    <v-dialog v-model="showPayDialog" max-width="400">
       <v-card>
         <v-card-title>确认购买</v-card-title>
         <v-card-text>
           <div class="text-center py-4">
-            <div class="text-h5">{{ selectedPackage?.name }}</div>
-            <div class="text-h4 font-weight-bold text-primary mt-2">
-              ¥{{ selectedPackage?.price / 100 }}
+            <div class="text-h6">{{ selectedPackage?.name }}</div>
+            <div class="text-h5 font-weight-bold text-primary mt-2">
+              ¥{{ (selectedPackage?.price / 100).toFixed(2) }}
             </div>
           </div>
 
-          <v-divider class="my-4" />
+          <v-alert
+            v-if="!selectedPackage?.renewable && hasPurchased"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-4"
+          >
+            您已购买过此套餐，不可再次购买
+          </v-alert>
 
-          <div class="text-subtitle-2 mb-2">选择支付方式</div>
-          <v-radio-group v-model="payType">
-            <v-radio
-              v-for="payment in payments"
-              :key="payment.id"
-              :value="String(payment.id)"
-              :label="payment.name"
-            />
-          </v-radio-group>
+          <v-alert
+            v-if="userBalance < (selectedPackage?.price || 0)"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-4"
+          >
+            余额不足，请先<a href="/deposit">充值</a>
+          </v-alert>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn @click="showPayDialog = false">取消</v-btn>
-          <v-btn color="primary" @click="createOrder" :loading="creating">确认支付</v-btn>
+          <v-btn
+            color="primary"
+            @click="createOrder"
+            :loading="creating"
+            :disabled="userBalance < (selectedPackage?.price || 0) || (!selectedPackage?.renewable && hasPurchased)"
+          >
+            确认购买
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -92,16 +122,23 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { packageAPI, paymentAPI, orderAPI, depositAPI } from '@/api'
+import { ref, onMounted, computed } from 'vue'
+import { packageAPI, orderAPI } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { useSnackbar } from '@/composables/useSnackbar'
+
+const authStore = useAuthStore()
+const { showSnackbar } = useSnackbar()
 
 const packages = ref([])
-const payments = ref([])
 const showPayDialog = ref(false)
 const selectedPackage = ref(null)
-const payType = ref(null)
 const purchasing = ref(null)
 const creating = ref(false)
+const loading = ref(false)
+const hasPurchased = ref(false)
+
+const userBalance = computed(() => authStore.user?.balance || 0)
 
 function formatBytes(bytes) {
   if (!bytes) return '0 B'
@@ -113,61 +150,70 @@ function formatBytes(bytes) {
 
 function purchase(pkg) {
   selectedPackage.value = pkg
-  payType.value = payments.value[0]?.id != null ? String(payments.value[0].id) : null
+
+  // 检查是否已购买过不可续费的套餐
+  if (!pkg.renewable) {
+    checkPurchased(pkg.id)
+  } else {
+    hasPurchased.value = false
+  }
+
   showPayDialog.value = true
 }
 
+async function checkPurchased(packageId) {
+  try {
+    const response = await orderAPI.list()
+    const orders = response.data || []
+    hasPurchased.value = orders.some(
+      o => o.package_id === packageId && o.status === 'success'
+    )
+  } catch {
+    hasPurchased.value = false
+  }
+}
+
 async function createOrder() {
-  if (!selectedPackage.value || !payType.value) return
+  if (!selectedPackage.value) return
 
   creating.value = true
   try {
-    // 创建订单
     const orderRes = await orderAPI.create({
       package_id: selectedPackage.value.id,
-      pay_type: payType.value
+      pay_type: 'balance'
     })
 
-    // 发起支付
-    const payRes = await depositAPI.create({
-      order_id: orderRes.data.order_id,
-      pay_type: payType.value
-    })
-
-    // 如果有支付链接，跳转
-    if (payRes.data.pay_url) {
-      window.location.href = payRes.data.pay_url
-    } else {
+    if (orderRes.code === 0 && orderRes.data?.status === 'completed') {
       showPayDialog.value = false
-      // 刷新订单列表
+      showSnackbar('购买成功！流量已到账', 'success')
+      await authStore.fetchProfile()
+      // 刷新套餐列表更新购买状态
+      loadPackages()
+    } else {
+      showSnackbar(orderRes.message || '购买失败', 'error')
     }
   } catch (error) {
     console.error('Failed to create order:', error)
+    showSnackbar(error.response?.data?.message || error.message || '购买失败', 'error')
   } finally {
     creating.value = false
   }
 }
 
 async function loadPackages() {
+  loading.value = true
   try {
     const response = await packageAPI.list()
     packages.value = response.data || []
   } catch (error) {
     console.error('Failed to load packages:', error)
-  }
-}
-
-async function loadPayments() {
-  try {
-    const response = await paymentAPI.list()
-    payments.value = response.data || []
-  } catch {
-    payments.value = []
+    showSnackbar('加载套餐失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
 onMounted(() => {
   loadPackages()
-  loadPayments()
 })
 </script>

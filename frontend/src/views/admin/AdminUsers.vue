@@ -43,6 +43,13 @@
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-account-group-outline</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无用户</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -141,7 +148,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
+
+const { showSnackbar } = useSnackbar()
 
 const users = ref([])
 const userGroups = ref([])
@@ -228,13 +238,16 @@ async function saveUser() {
   try {
     if (editingUser.value) {
       await adminAPI.users.update(editingUser.value.id, form.value)
+      showSnackbar('用户更新成功', 'success')
     } else {
       await adminAPI.users.create(form.value)
+      showSnackbar('用户创建成功', 'success')
     }
     closeDialog()
     loadUsers()
   } catch (error) {
     console.error('Failed to save user:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }
@@ -247,10 +260,12 @@ async function confirmAdjustBalance() {
   adjusting.value = true
   try {
     await adminAPI.users.adjustBalance(adjustingUser.value.id, balanceForm.value)
+    showSnackbar('余额调整成功', 'success')
     showBalanceDialog.value = false
     loadUsers()
   } catch (error) {
     console.error('Failed to adjust balance:', error)
+    showSnackbar(error.response?.data?.message || error.message || '调整失败', 'error')
   } finally {
     adjusting.value = false
   }
@@ -262,11 +277,13 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await adminAPI.users.delete(deletingUser.value.id)
+    showSnackbar('用户删除成功', 'success')
     showDeleteDialog.value = false
     deletingUser.value = null
     loadUsers()
   } catch (error) {
     console.error('Failed to delete user:', error)
+    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -279,6 +296,7 @@ async function loadUsers() {
     users.value = response.data?.list || response.data || []
   } catch (error) {
     console.error('Failed to load users:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载用户失败', 'error')
   } finally {
     loading.value = false
   }

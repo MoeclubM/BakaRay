@@ -1,20 +1,19 @@
 import client from './axios'
 
 function normalizeListResponse(res) {
-  const raw = res?.data
-  if (raw && Array.isArray(raw.list)) {
+  const payload = res?.data
+  if (payload && Array.isArray(payload.list)) {
     return {
       ...res,
-      raw,
-      data: raw.list,
-      total: raw.total ?? 0,
-      page: raw.page ?? 1
+      data: payload.list,
+      total: payload.total ?? 0,
+      page: payload.page ?? 1
     }
   }
-  if (Array.isArray(raw)) {
-    return { ...res, raw, data: raw, total: raw.length }
+  if (Array.isArray(payload)) {
+    return { ...res, data: payload, total: payload.length }
   }
-  return { ...res, raw, data: [] }
+  return { ...res, data: [], total: 0, page: 1 }
 }
 
 // 认证相关
@@ -26,9 +25,10 @@ export const authAPI = {
 
 // 用户相关
 export const userAPI = {
-  getProfile: () => client.get('/user/profile').then((res) => ({ ...res, data: res.data })),
+  getProfile: () => client.get('/user/profile'),
   updateProfile: (data) => client.put('/user/profile', data),
-  getTrafficStats: (params) => client.get('/statistics/traffic', { params })
+  changePassword: (data) => client.post('/user/change-password', data),
+  getTrafficStats: (params) => client.get('/statistics/traffic', { params })    
 }
 
 // 节点相关
@@ -70,7 +70,7 @@ export const depositAPI = {
 // 管理后台
 export const adminAPI = {
   site: {
-    get: () => client.get('/admin/site').then((res) => ({ ...res, data: res.data })),
+    get: () => client.get('/admin/site'),
     update: (data) => client.put('/admin/site', data)
   },
   nodes: {
@@ -116,7 +116,14 @@ export const adminAPI = {
     delete: (id) => client.delete(`/admin/user-groups/${id}`)
   },
   rules: {
-    count: () => client.get('/admin/rules/count').then((res) => ({ ...res, data: res.data?.total ?? 0 }))
+    count: () =>
+      client.get('/admin/rules/count').then((res) => ({
+        ...res,
+        data: res?.data?.total ?? 0
+      }))
+  },
+  stats: {
+    overview: () => client.get('/admin/stats/overview')
   }
 }
 
@@ -131,4 +138,3 @@ export default {
   depositAPI,
   adminAPI
 }
-

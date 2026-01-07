@@ -60,40 +60,42 @@ type JWTConfig struct {
 
 // Load 加载配置文件
 func Load() (*Config, error) {
-	cfg := &Config{
-		Server: ServerConfig{
-			Host: getEnv("SERVER_HOST", "0.0.0.0"),
-			Port: getEnv("SERVER_PORT", "8080"),
-			Mode: getEnv("SERVER_MODE", "release"),
-		},
-		Database: DatabaseConfig{
-			Type:     getEnv("DB_TYPE", "sqlite"),
-			Path:     getEnv("DB_PATH", "data/bakaray.db"),
-			Host:     getEnv("DB_HOST", "localhost"),
-			Port:     getEnvInt("DB_PORT", 3306),
-			Username: getEnv("DB_USERNAME", "root"),
-			Password: getEnv("DB_PASSWORD", ""),
-			Name:     getEnv("DB_NAME", "bakaray"),
-		},
-		Redis: RedisConfig{
-			Host:     getEnv("REDIS_HOST", "localhost"),
-			Port:     getEnvInt("REDIS_PORT", 6379),
-			Password: getEnv("REDIS_PASSWORD", "bakaray-redis-password"),
-			DB:       getEnvInt("REDIS_DB", 0),
-			PoolSize: getEnvInt("REDIS_POOL_SIZE", 10),
-		},
-		Site: SiteConfig{
-			Name:               getEnv("SITE_NAME", "BakaRay"),
-			Domain:             getEnv("SITE_DOMAIN", "http://localhost:8080"),
-			NodeSecret:         getEnv("NODE_SECRET", "change-this-secret-in-production"),
-			NodeReportInterval: getEnvInt("NODE_REPORT_INTERVAL", 300),
-		},
-		JWT: JWTConfig{
-			Secret:     getEnv("JWT_SECRET", "change-this-secret-in-production"),
-			Expiration: getEnvInt("JWT_EXPIRATION", 86400),
-		},
+	cfg := &Config{}
+
+	// 首先加载默认值
+	cfg.Server = ServerConfig{
+		Host: "0.0.0.0",
+		Port: "8080",
+		Mode: "release",
+	}
+	cfg.Database = DatabaseConfig{
+		Type:     "sqlite",
+		Path:     "data/bakaray.db",
+		Host:     "localhost",
+		Port:     3306,
+		Username: "root",
+		Password: "",
+		Name:     "bakaray",
+	}
+	cfg.Redis = RedisConfig{
+		Host:     "localhost",
+		Port:     6379,
+		Password: "",
+		DB:       0,
+		PoolSize: 10,
+	}
+	cfg.Site = SiteConfig{
+		Name:               "BakaRay",
+		Domain:             "http://localhost:8080",
+		NodeSecret:         "change-this-secret-in-production",
+		NodeReportInterval: 30,
+	}
+	cfg.JWT = JWTConfig{
+		Secret:     "change-this-secret-in-production",
+		Expiration: 86400,
 	}
 
+	// 然后从配置文件加载（会覆盖默认值）
 	configFile := getEnv("CONFIG_FILE", "config.yaml")
 	if _, err := os.Stat(configFile); err == nil {
 		data, err := os.ReadFile(configFile)
@@ -105,7 +107,98 @@ func Load() (*Config, error) {
 		}
 	}
 
+	// 最后用环境变量覆盖（最高优先级）
+	applyEnvOverrides(cfg)
+
 	return cfg, nil
+}
+
+// applyEnvOverrides 用环境变量覆盖配置
+func applyEnvOverrides(cfg *Config) {
+	// Server
+	if v := os.Getenv("SERVER_HOST"); v != "" {
+		cfg.Server.Host = v
+	}
+	if v := os.Getenv("SERVER_PORT"); v != "" {
+		cfg.Server.Port = v
+	}
+	if v := os.Getenv("SERVER_MODE"); v != "" {
+		cfg.Server.Mode = v
+	}
+
+	// Database
+	if v := os.Getenv("DB_TYPE"); v != "" {
+		cfg.Database.Type = v
+	}
+	if v := os.Getenv("DB_PATH"); v != "" {
+		cfg.Database.Path = v
+	}
+	if v := os.Getenv("DB_HOST"); v != "" {
+		cfg.Database.Host = v
+	}
+	if v := os.Getenv("DB_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Database.Port = port
+		}
+	}
+	if v := os.Getenv("DB_USERNAME"); v != "" {
+		cfg.Database.Username = v
+	}
+	if v := os.Getenv("DB_PASSWORD"); v != "" {
+		cfg.Database.Password = v
+	}
+	if v := os.Getenv("DB_NAME"); v != "" {
+		cfg.Database.Name = v
+	}
+
+	// Redis
+	if v := os.Getenv("REDIS_HOST"); v != "" {
+		cfg.Redis.Host = v
+	}
+	if v := os.Getenv("REDIS_PORT"); v != "" {
+		if port, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.Port = port
+		}
+	}
+	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
+		cfg.Redis.Password = v
+	}
+	if v := os.Getenv("REDIS_DB"); v != "" {
+		if db, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.DB = db
+		}
+	}
+	if v := os.Getenv("REDIS_POOL_SIZE"); v != "" {
+		if size, err := strconv.Atoi(v); err == nil {
+			cfg.Redis.PoolSize = size
+		}
+	}
+
+	// Site
+	if v := os.Getenv("SITE_NAME"); v != "" {
+		cfg.Site.Name = v
+	}
+	if v := os.Getenv("SITE_DOMAIN"); v != "" {
+		cfg.Site.Domain = v
+	}
+	if v := os.Getenv("NODE_SECRET"); v != "" {
+		cfg.Site.NodeSecret = v
+	}
+	if v := os.Getenv("NODE_REPORT_INTERVAL"); v != "" {
+		if interval, err := strconv.Atoi(v); err == nil {
+			cfg.Site.NodeReportInterval = interval
+		}
+	}
+
+	// JWT
+	if v := os.Getenv("JWT_SECRET"); v != "" {
+		cfg.JWT.Secret = v
+	}
+	if v := os.Getenv("JWT_EXPIRATION"); v != "" {
+		if exp, err := strconv.Atoi(v); err == nil {
+			cfg.JWT.Expiration = exp
+		}
+	}
 }
 
 func getEnv(key, defaultValue string) string {

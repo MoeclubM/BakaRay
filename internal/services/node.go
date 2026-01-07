@@ -77,7 +77,7 @@ func (s *NodeService) UpdateNodeStatus(id uint, status string) error {
 	}).Error
 }
 
-// ListNodes 获取节点列表
+// ListNodes 获取节点列表（所有节点，管理员用）
 func (s *NodeService) ListNodes(page, pageSize int, status string) ([]models.Node, int64) {
 	var nodes []models.Node
 	var total int64
@@ -94,8 +94,53 @@ func (s *NodeService) ListNodes(page, pageSize int, status string) ([]models.Nod
 	return nodes, total
 }
 
+// ListNodesForUser 根据用户组获取可见节点列表
+func (s *NodeService) ListNodesForUser(userGroupID uint, page, pageSize int, status string) ([]models.Node, int64) {
+	var nodes []models.Node
+	var total int64
+
+	// 如果用户没有分配用户组，返回空列表
+	if userGroupID == 0 {
+		return nodes, 0
+	}
+
+	// 查找用户组允许访问的节点
+	var allowedNodeIDs []uint
+	if err := s.db.Model(&models.NodeAllowedGroup{}).
+		Where("user_group_id = ?", userGroupID).
+		Pluck("node_id", &allowedNodeIDs).Error; err != nil {
+		return nodes, 0
+	}
+
+	// 如果没有允许的节点，返回空
+	if len(allowedNodeIDs) == 0 {
+		return nodes, 0
+	}
+
+	query := s.db.Model(&models.Node{}).Where("id IN ?", allowedNodeIDs)
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	query.Count(&total)
+	offset := (page - 1) * pageSize
+	query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&nodes)
+
+	return nodes, total
+}
+
+// CountNodes 统计节点总数
+func (s *NodeService) CountNodes() int64 {
+	var total int64
+	s.db.Model(&models.Node{}).Count(&total)
+	return total
+}
+
 // SaveProbeData 保存探针数据到 Redis
 func (s *NodeService) SaveProbeData(nodeID uint, probe *models.ProbeData) error {
+	if s.redis == nil {
+		return nil
+	}
 	data, err := json.Marshal(probe)
 	if err != nil {
 		return err
@@ -108,6 +153,9 @@ func (s *NodeService) SaveProbeData(nodeID uint, probe *models.ProbeData) error 
 
 // GetProbeData 获取探针数据从 Redis
 func (s *NodeService) GetProbeData(nodeID uint) (*models.ProbeData, error) {
+	if s.redis == nil {
+		return nil, nil
+	}
 	ctx := context.Background()
 	key := fmt.Sprintf("node_probe:%d", nodeID)
 	data, err := s.redis.Get(ctx, key).Bytes()
@@ -125,6 +173,9 @@ func (s *NodeService) GetProbeData(nodeID uint) (*models.ProbeData, error) {
 // ComputeTrafficDeltas computes per-rule traffic deltas based on cumulative counters reported by the node.
 // Expected keys: rule_{id}_in / rule_{id}_out.
 func (s *NodeService) ComputeTrafficDeltas(nodeID uint, stats map[string]int64) (map[uint]TrafficDelta, error) {
+	if s.redis == nil {
+		return map[uint]TrafficDelta{}, nil
+	}
 	type counts struct {
 		in  int64
 		out int64

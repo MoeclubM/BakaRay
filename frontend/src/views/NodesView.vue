@@ -5,6 +5,10 @@
       <v-spacer />
     </div>
 
+    <v-overlay v-model="loading" contained class="align-center justify-center">
+      <v-progress-circular indeterminate size="64" />
+    </v-overlay>
+
     <v-row>
       <v-col v-for="node in nodes" :key="node.id" cols="12" md="6" lg="4">
         <v-card :class="{ 'border-opacity-50': node.status !== 'online' }">
@@ -32,12 +36,6 @@
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
-                  <v-icon>mdi-ip</v-icon>
-                </template>
-                <v-list-item-title>地址：{{ node.host }}:{{ node.port }}</v-list-item-title>
-              </v-list-item>
-              <v-list-item>
-                <template v-slot:prepend>
                   <v-icon>mdi-protocol</v-icon>
                 </template>
                 <v-list-item-title>协议：{{ (node.protocols || []).join(', ') }}</v-list-item-title>
@@ -58,58 +56,58 @@
                 <div v-if="node.probe" class="probe-content">
                   <!-- CPU -->
                   <div class="probe-item">
-                    <span>CPU 使用率</span>
+                    <span>CPU</span>
                     <v-progress-linear
                       :model-value="node.probe.cpu?.usage_percent || 0"
                       color="primary"
-                      height="20"
-                      style="width: 100px"
+                      height="24"
+                      rounded
+                      style="width: 140px"
                     >
                       <template v-slot:default>
-                        {{ node.probe.cpu?.usage_percent?.toFixed(1) || 0 }}%
+                        {{ (node.probe.cpu?.usage_percent || 0).toFixed(1) }}%
                       </template>
                     </v-progress-linear>
                   </div>
                   <!-- Memory -->
                   <div class="probe-item">
-                    <span>内存使用率</span>
+                    <span>内存</span>
                     <v-progress-linear
                       :model-value="node.probe.memory?.usage_percent || 0"
                       color="info"
-                      height="20"
-                      style="width: 100px"
+                      height="24"
+                      rounded
+                      style="width: 140px"
                     >
                       <template v-slot:default>
-                        {{ node.probe.memory?.usage_percent?.toFixed(1) || 0 }}%
+                        {{ (node.probe.memory?.usage_percent || 0).toFixed(1) }}%
                       </template>
                     </v-progress-linear>
                   </div>
                   <!-- Network -->
-                  <div v-for="iface in node.probe.network" :key="iface.name" class="probe-item">
-                    <span>{{ iface.name }}</span>
-                    <div class="text-caption">
-                      <span class="text-success">↓ {{ formatSpeed(iface.rx_speed) }}</span>
-                      <span class="ml-2 text-info">↑ {{ formatSpeed(iface.tx_speed) }}</span>
+                  <template v-if="node.probe.network && node.probe.network.length">
+                    <div v-for="iface in node.probe.network" :key="iface.name" class="probe-item">
+                      <span>{{ iface.name }}</span>
+                      <div class="text-caption">
+                        <span class="text-success">↓ {{ formatSpeed(iface.rx_speed) }}</span>
+                        <span class="ml-2 text-info">↑ {{ formatSpeed(iface.tx_speed) }}</span>
+                      </div>
                     </div>
-                  </div>
+                  </template>
                 </div>
-                <div v-else class="text-grey">暂无探针数据</div>
+                <div v-else class="text-grey text-caption">暂无探针数据</div>
               </div>
             </v-expand-transition>
           </v-card-text>
 
           <v-card-actions>
             <v-btn
-              variant="text"
+              variant="tonal"
               size="small"
               @click="toggleProbe(node.id)"
             >
               <v-icon start>{{ expandedNode === node.id ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
-              {{ expandedNode === node.id ? '收起' : '查看探针' }}
-            </v-btn>
-            <v-spacer />
-            <v-btn variant="tonal" color="primary" size="small">
-              管理
+              {{ expandedNode === node.id ? '收起' : '探针' }}
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -124,12 +122,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { nodeAPI } from '@/api'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import 'dayjs/locale/zh-cn'
+
+dayjs.extend(relativeTime)
+dayjs.locale('zh-cn')
 
 const nodes = ref([])
 const expandedNode = ref(null)
+const loading = ref(false)
+let refreshInterval = null
 
 function formatDate(date) {
   if (!date) return '未知'
@@ -148,12 +153,27 @@ function toggleProbe(nodeId) {
   expandedNode.value = expandedNode.value === nodeId ? null : nodeId
 }
 
-onMounted(async () => {
+async function loadNodes() {
   try {
     const response = await nodeAPI.list()
     nodes.value = response.data || []
   } catch (error) {
     console.error('Failed to load nodes:', error)
+  }
+}
+
+onMounted(async () => {
+  loading.value = true
+  await loadNodes()
+  loading.value = false
+
+  // 每秒自动刷新探针数据
+  refreshInterval = setInterval(loadNodes, 1000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
   }
 })
 </script>
@@ -172,6 +192,6 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 0;
+  padding: 8px 0;
 }
 </style>

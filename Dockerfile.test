@@ -1,0 +1,17 @@
+# 测试用 Dockerfile
+FROM golang:1.25-alpine
+
+WORKDIR /app
+
+# 安装 git、测试依赖和工具
+RUN apk add --no-cache git nodejs npm gcc musl-dev curl jq bash
+
+# 复制 go 模块文件
+COPY go.mod go.sum ./
+RUN go mod download
+
+# 复制源代码
+COPY . .
+
+# 运行单元测试
+# CMD ["go", "test", "-v", "./..."]

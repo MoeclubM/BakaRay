@@ -1,0 +1,43 @@
+# BakaRay 节点 Docker 测试配置 - 简化版
+
+services:
+  # 出口节点 - 简单的 HTTP 服务器
+  bakaray-exit:
+    image: nginx:alpine
+    container_name: bakaray-exit
+    ports:
+      - "8810:80"
+    volumes:
+      - ./docker/test-exit.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      bakaray_net:
+        ipv4_address: 172.28.0.31
+    restart: unless-stopped
+
+  # 入口节点 - TCP 转发 (使用 socat)
+  bakaray-entry:
+    image: alpine:latest
+    container_name: bakaray-entry
+    ports:
+      - "8800:8080"
+    command:
+      - /bin/sh
+      - -c
+      - |
+        apk add --no-cache socat > /dev/null 2>&1
+        echo "Starting TCP forward: 8080 -> bakaray-exit:80"
+        socat TCP-LISTEN:8080,fork TCP:bakaray-exit:80
+    networks:
+      bakaray_net:
+        ipv4_address: 172.28.0.30
+    depends_on:
+      - bakaray-exit
+    restart: unless-stopped
+
+networks:
+  bakaray_net:
+    name: bakaray_net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

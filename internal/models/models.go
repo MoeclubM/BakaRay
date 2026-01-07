@@ -124,6 +124,8 @@ type Package struct {
 	Traffic      int64     `json:"traffic" gorm:"not null"` // 单位：字节
 	Price        int64     `json:"price" gorm:"not null"`   // 单位：分
 	UserGroupID  uint      `json:"user_group_id"`
+	Visible      bool      `json:"visible" gorm:"default:true"`       // 是否显示
+	Renewable    bool      `json:"renewable" gorm:"default:false"`    // 是否可续费（重复购买）
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }

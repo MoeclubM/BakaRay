@@ -1,0 +1,28 @@
+{
+  "name": "bakaray",
+  "version": "1.0.0",
+  "description": "Go + Gin 后端 + Vue 3 + Vite + Vuetify 前端的转发管理面板（Panel）。",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:e2e": "playwright test",
+    "test:api": "bash tests/api_test.sh",
+    "test:all": "npm run test:api && npm run test:e2e"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MoeclubM/BakaRay.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MoeclubM/BakaRay/issues"
+  },
+  "homepage": "https://github.com/MoeclubM/BakaRay#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.3"
+  }
+}

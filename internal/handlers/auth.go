@@ -28,9 +28,18 @@ type LoginRequest struct {
 
 // LoginResponse 登录响应
 type LoginResponse struct {
-	Code   int    `json:"code"`
-	Token  string `json:"token"`
-	Expire int    `json:"expire"`
+	Code   int         `json:"code"`
+	Token  string      `json:"token"`
+	Expire int         `json:"expire"`
+	User   *UserInfo   `json:"user"`
+}
+
+// UserInfo 用户信息
+type UserInfo struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+	Role     string `json:"role"`
+	Balance  int64  `json:"balance"`
 }
 
 // Login 登录
@@ -63,6 +72,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Code:   0,
 		Token:  token,
 		Expire: h.userService.GetJWTExpiration(),
+		User: &UserInfo{
+			ID:       user.ID,
+			Username: user.Username,
+			Role:     user.Role,
+			Balance:  user.Balance,
+		},
 	})
 }
 

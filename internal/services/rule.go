@@ -116,6 +116,33 @@ func (s *RuleService) CreateGostRule(rule *models.GostRule) error {
 	return s.db.Create(rule).Error
 }
 
+// UpsertGostRule creates or updates gost config for a rule.
+func (s *RuleService) UpsertGostRule(ruleID uint, updates map[string]interface{}) error {
+	var existing models.GostRule
+	err := s.db.Where("rule_id = ?", ruleID).First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			cfg := models.GostRule{RuleID: ruleID}
+			if v, ok := updates["transport"]; ok {
+				cfg.Transport, _ = v.(string)
+			}
+			if v, ok := updates["tls"]; ok {
+				cfg.TLS, _ = v.(bool)
+			}
+			if v, ok := updates["chain"]; ok {
+				cfg.Chain, _ = v.(string)
+			}
+			if v, ok := updates["timeout"]; ok {
+				cfg.Timeout, _ = v.(int)
+			}
+			return s.db.Create(&cfg).Error
+		}
+		return err
+	}
+
+	return s.db.Model(&models.GostRule{}).Where("rule_id = ?", ruleID).Updates(updates).Error
+}
+
 // GetIPTablesRule 获取 iptables 协议配置
 func (s *RuleService) GetIPTablesRule(ruleID uint) (*models.IPTablesRule, error) {
 	var rule models.IPTablesRule
@@ -133,10 +160,83 @@ func (s *RuleService) CreateIPTablesRule(rule *models.IPTablesRule) error {
 	return s.db.Create(rule).Error
 }
 
-// UpdateTrafficUsed 更新已用流量
+// UpsertIPTablesRule creates or updates iptables config for a rule.
+func (s *RuleService) UpsertIPTablesRule(ruleID uint, updates map[string]interface{}) error {
+	var existing models.IPTablesRule
+	err := s.db.Where("rule_id = ?", ruleID).First(&existing).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			cfg := models.IPTablesRule{RuleID: ruleID}
+			if v, ok := updates["proto"]; ok {
+				cfg.Proto, _ = v.(string)
+			}
+			if v, ok := updates["snat"]; ok {
+				cfg.SNAT, _ = v.(bool)
+			}
+			if v, ok := updates["iface"]; ok {
+				cfg.Iface, _ = v.(string)
+			}
+			return s.db.Create(&cfg).Error
+		}
+		return err
+	}
+
+	return s.db.Model(&models.IPTablesRule{}).Where("rule_id = ?", ruleID).Updates(updates).Error
+}
+
+// MaxTrafficLimit 单次更新流量上限（防止异常大流量），单位：字节
+const MaxTrafficLimit int64 = 1024 * 1024 * 1024 * 10 // 10GB
+
+// UpdateTrafficUsed 更新已用流量（带上限检查）
 func (s *RuleService) UpdateTrafficUsed(ruleID uint, bytes int64) error {
-	return s.db.Model(&models.ForwardingRule{}).Where("id = ?", ruleID).
-		Update("traffic_used", gorm.Expr("traffic_used + ?", bytes)).Error
+	// 检查并限制单次更新量
+	if bytes > MaxTrafficLimit {
+		bytes = MaxTrafficLimit
+	}
+	if bytes < 0 {
+		bytes = 0
+	}
+
+	// 更新流量，限制不超过 traffic_limit（如果有设置）
+	return s.db.Model(&models.ForwardingRule{}).Where("id = ? AND (traffic_limit = 0 OR traffic_used < traffic_limit)", ruleID).
+		Update("traffic_used", gorm.Expr("LEAST(traffic_used + ?, COALESCE(traffic_limit, 0))", bytes)).Error
+}
+
+// UpdateTrafficUsedWithDisable 更新流量并自动禁用超限规则
+func (s *RuleService) UpdateTrafficUsedWithDisable(ruleID uint, bytes int64) (disabled bool, err error) {
+	// 检查并限制单次更新量
+	if bytes > MaxTrafficLimit {
+		bytes = MaxTrafficLimit
+	}
+	if bytes < 0 {
+		bytes = 0
+	}
+
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		var rule models.ForwardingRule
+		if err := tx.First(&rule, ruleID).Error; err != nil {
+			return err
+		}
+
+		newUsed := rule.TrafficUsed + bytes
+		// 检查是否超过限制
+		if rule.TrafficLimit > 0 && newUsed >= rule.TrafficLimit {
+			// 禁用规则
+			if err := tx.Model(&rule).Where("id = ?", ruleID).Updates(map[string]interface{}{
+				"traffic_used": rule.TrafficLimit,
+				"enabled":      false,
+			}).Error; err != nil {
+				return err
+			}
+			disabled = true
+			return nil
+		}
+
+		// 正常更新流量
+		return tx.Model(&rule).Where("id = ?", ruleID).
+			Update("traffic_used", gorm.Expr("traffic_used + ?", bytes)).Error
+	})
+	return
 }
 
 // CreateTrafficLog records a traffic delta entry.

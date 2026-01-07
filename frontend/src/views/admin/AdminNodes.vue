@@ -46,6 +46,13 @@
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
+
+        <template v-slot:no-data>
+          <div class="text-center py-12">
+            <v-icon size="64" color="grey">mdi-server-network-off</v-icon>
+            <div class="text-h6 mt-4 text-grey">暂无节点</div>
+          </div>
+        </template>
       </v-data-table>
     </v-card>
 
@@ -72,9 +79,11 @@
               <v-col cols="4">
                 <v-text-field
                   v-model.number="form.port"
-                  label="API端口"
+                  label="管理端口"
                   type="number"
                   :rules="[v => v > 0 || '请输入有效端口']"
+                  hint="节点端 HTTP 管理端口（默认 8081）"
+                  persistent-hint
                 />
               </v-col>
             </v-row>
@@ -152,7 +161,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
+
+const { showSnackbar } = useSnackbar()
 
 const nodes = ref([])
 const nodeGroups = ref([])
@@ -170,7 +182,7 @@ const formRef = ref(null)
 const form = ref({
   name: '',
   host: '',
-  port: 8080,
+  port: 8081,
   secret: '',
   node_group_id: null,
   protocols: ['gost'],
@@ -210,7 +222,7 @@ function closeDialog() {
   form.value = {
     name: '',
     host: '',
-    port: 8080,
+    port: 8081,
     secret: '',
     node_group_id: null,
     protocols: ['gost'],
@@ -227,13 +239,16 @@ async function saveNode() {
   try {
     if (editingNode.value) {
       await adminAPI.nodes.update(editingNode.value.id, form.value)
+      showSnackbar('节点更新成功', 'success')
     } else {
       await adminAPI.nodes.create(form.value)
+      showSnackbar('节点创建成功', 'success')
     }
     closeDialog()
     loadNodes()
   } catch (error) {
     console.error('Failed to save node:', error)
+    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
   } finally {
     saving.value = false
   }
@@ -245,11 +260,13 @@ async function confirmDelete() {
   deleting.value = true
   try {
     await adminAPI.nodes.delete(deletingNode.value.id)
+    showSnackbar('节点删除成功', 'success')
     showDeleteDialog.value = false
     deletingNode.value = null
     loadNodes()
   } catch (error) {
     console.error('Failed to delete node:', error)
+    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
   }
@@ -258,8 +275,10 @@ async function confirmDelete() {
 async function reloadNode(node) {
   try {
     await adminAPI.nodes.reload(node.id)
+    showSnackbar('热更新指令已下发', 'success')
   } catch (error) {
     console.error('Failed to reload node:', error)
+    showSnackbar(error.response?.data?.message || error.message || '热更新失败', 'error')
   }
 }
 
@@ -270,6 +289,7 @@ async function loadNodes() {
     nodes.value = response.data || []
   } catch (error) {
     console.error('Failed to load nodes:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载节点失败', 'error')
   } finally {
     loading.value = false
   }

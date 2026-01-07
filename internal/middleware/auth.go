@@ -33,10 +33,18 @@ type AuthMiddleware struct {
 
 // NewAuthMiddleware 创建认证中间件
 func NewAuthMiddleware(userService *services.UserService) *AuthMiddleware {
+	secret := "default-secret"
+	exp := 24 * 3600 // 默认24小时
+
+	if userService != nil {
+		secret = userService.GetJWTSecret()
+		exp = userService.GetJWTExpiration()
+	}
+
 	return &AuthMiddleware{
 		userService: userService,
-		jwtSecret:   userService.GetJWTSecret(),
-		jwtExp:      userService.GetJWTExpiration(),
+		jwtSecret:   secret,
+		jwtExp:      exp,
 	}
 }
 

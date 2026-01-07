@@ -2,6 +2,10 @@
   <div>
     <h1 class="text-h4 mb-6">站点设置</h1>
 
+    <v-overlay v-model="loading" contained class="align-center justify-center">
+      <v-progress-circular indeterminate size="64" />
+    </v-overlay>
+
     <v-card>
       <v-card-text>
         <v-form ref="formRef" @submit.prevent="saveSettings">
@@ -66,18 +70,20 @@
 
     <!-- 一键配置链接 -->
     <v-card class="mt-4">
-      <v-card-title>节点一键配置</v-card-title>
+      <v-card-title>节点配置模板</v-card-title>
       <v-card-text>
         <v-alert type="info" variant="tonal" class="mb-4">
-          将以下链接发送给节点管理员，节点可以使用此链接一键导入配置。
+          将以下配置发送给节点管理员（需要将 node_id 替换为对应节点 ID）。
         </v-alert>
 
-        <v-text-field
-          :model-value="configUrl"
-          label="配置链接"
+        <v-textarea
+          :model-value="nodeConfigYaml"
+          label="config.yaml"
           readonly
+          auto-grow
+          rows="10"
           append-inner-icon="mdi-content-copy"
-          @click:append-inner="copyConfigUrl"
+          @click:append-inner="copyNodeConfigYaml"
         />
       </v-card-text>
     </v-card>
@@ -87,10 +93,13 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { adminAPI } from '@/api'
+import { useSnackbar } from '@/composables/useSnackbar'
 
 const formRef = ref(null)
 const saving = ref(false)
 const showSecret = ref(false)
+const loading = ref(false)
+const { showSnackbar } = useSnackbar()
 
 const form = ref({
   site_name: 'BakaRay',
@@ -99,16 +108,31 @@ const form = ref({
   node_report_interval: 30
 })
 
-const configUrl = computed(() => {
-  const domain = form.value.site_domain || window.location.host
-  return `https://${domain}/node/register?secret=${form.value.node_secret}`
+const panelURL = computed(() => {
+  const raw = (form.value.site_domain || '').trim()
+  if (!raw) return window.location.origin
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  return `https://${raw}`
 })
 
-function copyConfigUrl() {
-  navigator.clipboard.writeText(configUrl.value)
+const nodeConfigYaml = computed(() => {
+  const secret = form.value.node_secret || ''
+  const reportInterval = Number(form.value.node_report_interval) || 30
+  return `# BakaRay-Node 配置文件\npanel:\n  url: \"${panelURL.value}\"\n  node_id: 1\n  secret: \"${secret}\"\n\nnode:\n  report_interval: ${reportInterval}\n  probe_interval: 5\n  http_port: 8081\n  listen_ports:\n    - 8080\n    - 8090\n    - 8100\n\nlogger:\n  level: \"info\"\n  output: \"stdout\"\n`
+})
+
+async function copyNodeConfigYaml() {
+  try {
+    await navigator.clipboard.writeText(nodeConfigYaml.value)
+    showSnackbar('已复制 config.yaml', 'success')
+  } catch (error) {
+    console.error('Failed to copy config yaml:', error)
+    showSnackbar('复制失败', 'error')
+  }
 }
 
 async function loadSettings() {
+  loading.value = true
   try {
     const response = await adminAPI.site.get()
     if (response.data) {
@@ -116,6 +140,8 @@ async function loadSettings() {
     }
   } catch (error) {
     console.error('Failed to load settings:', error)
+  } finally {
+    loading.value = false
   }
 }
 

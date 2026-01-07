@@ -1,12 +1,14 @@
 package services
 
 import (
+	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"time"
 
 	"bakaray/internal/models"
 
-	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -64,6 +66,31 @@ func (s *PaymentService) ListPackages(userGroupID uint) ([]models.Package, error
 	return packages, nil
 }
 
+// ListVisiblePackages 获取可见的套餐列表
+func (s *PaymentService) ListVisiblePackages(userGroupID uint) ([]models.Package, error) {
+	var packages []models.Package
+	query := s.db.Where("visible = ?", true)
+	if userGroupID > 0 {
+		query = query.Where("user_group_id = ? OR user_group_id = 0", userGroupID)
+	}
+	if err := query.Find(&packages).Error; err != nil {
+		return nil, err
+	}
+	return packages, nil
+}
+
+// HasUserPurchasedPackage 检查用户是否已购买过该套餐
+func (s *PaymentService) HasUserPurchasedPackage(userID, packageID uint) (bool, error) {
+	var count int64
+	err := s.db.Model(&models.Order{}).
+		Where("user_id = ? AND package_id = ? AND status = ?", userID, packageID, "success").
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // CreateOrder 创建订单
 func (s *PaymentService) CreateOrder(userID, packageID uint, amount int64, payType string) (*models.Order, error) {
 	order := &models.Order{
@@ -76,6 +103,67 @@ func (s *PaymentService) CreateOrder(userID, packageID uint, amount int64, payTy
 	}
 
 	if err := s.db.Create(order).Error; err != nil {
+		return nil, err
+	}
+	return order, nil
+}
+
+// CreateAndCompleteOrder 创建并完成订单（余额支付）
+func (s *PaymentService) CreateAndCompleteOrder(userID, packageID uint, amount int64) (*models.Order, error) {
+	// 获取套餐信息
+	pkg, err := s.GetPackageByID(packageID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 在事务中完成订单和扣款
+	var order *models.Order
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		// 检查用户余额是否足够
+		var user models.User
+		if err := tx.First(&user, userID).Error; err != nil {
+			return err
+		}
+		if user.Balance < amount {
+			return errors.New("余额不足")
+		}
+
+		// 创建已完成的订单
+		order = &models.Order{
+			UserID:    userID,
+			PackageID: packageID,
+			Amount:    amount,
+			Status:    "success",
+			TradeNo:   generateTradeNo(),
+			PayType:   "balance",
+		}
+		if err := tx.Create(order).Error; err != nil {
+			return err
+		}
+
+		// 扣款（从余额中扣除金额）
+		if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance - ?", amount)).Error; err != nil {
+			return err
+		}
+
+		// 增加用户流量
+		if pkg.Traffic > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("traffic_balance", gorm.Expr("traffic_balance + ?", pkg.Traffic)).Error; err != nil {
+				return err
+			}
+		}
+
+		// 如果套餐指定了用户组，更新用户的用户组
+		if pkg.UserGroupID > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("user_group_id", pkg.UserGroupID).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil, err
 	}
 	return order, nil
@@ -122,9 +210,70 @@ func (s *PaymentService) CompleteOrder(tradeNo string, userID uint, traffic int6
 		if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
 			return err
 		}
-		// 更新用户余额
+		// 更新用户流量
 		if traffic > 0 {
-			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance + ?", traffic)).Error; err != nil {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("traffic_balance", gorm.Expr("traffic_balance + ?", traffic)).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// CompleteOrderWithLock 幂等性完成订单（带分布式锁）
+func (s *PaymentService) CompleteOrderWithLock(tradeNo string, userID uint, traffic int64) error {
+	// 如果没有 Redis，使用普通方法
+	if s.redis == nil {
+		return s.CompleteOrder(tradeNo, userID, traffic)
+	}
+
+	ctx := context.Background()
+	lockKey := "order:lock:" + tradeNo
+
+	// 获取分布式锁
+	lockAcquired, err := s.redis.SetNX(ctx, lockKey, "1", 10*time.Second).Result()
+	if err != nil {
+		// 如果 Redis 错误，回退到普通方法
+		return s.CompleteOrder(tradeNo, userID, traffic)
+	}
+
+	if !lockAcquired {
+		// 锁已被持有，返回成功（幂等性）
+		return nil
+	}
+	defer s.redis.Del(ctx, lockKey)
+
+	// 检查订单是否已完成（幂等性检查）
+	var order models.Order
+	if err := s.db.Where("trade_no = ?", tradeNo).First(&order).Error; err != nil {
+		return err
+	}
+	if order.Status == "success" {
+		// 订单已完成，直接返回
+		return nil
+	}
+
+	// 获取套餐信息
+	pkg, err := s.GetPackageByID(order.PackageID)
+	if err != nil {
+		return err
+	}
+
+	// 在事务中完成订单
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 更新订单状态
+		if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
+			return err
+		}
+		// 更新用户流量
+		if pkg.Traffic > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("traffic_balance", gorm.Expr("traffic_balance + ?", pkg.Traffic)).Error; err != nil {
+				return err
+			}
+		}
+		// 如果套餐指定了用户组，更新用户的用户组
+		if pkg.UserGroupID > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("user_group_id", pkg.UserGroupID).Error; err != nil {
 				return err
 			}
 		}
@@ -164,6 +313,17 @@ func (s *PaymentService) ListAllOrders(page, pageSize int, status string) ([]mod
 	query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&orders)
 
 	return orders, total
+}
+
+// GetOrderStats 获取订单统计数据
+func (s *PaymentService) GetOrderStats() (int64, int64) {
+	var orderCount int64
+	var totalRevenue int64
+
+	s.db.Model(&models.Order{}).Where("status = ?", "success").Count(&orderCount)
+	s.db.Model(&models.Order{}).Where("status = ?", "success").Select("COALESCE(SUM(amount), 0)").Scan(&totalRevenue)
+
+	return orderCount, totalRevenue
 }
 
 // PaymentConfigService 支付配置服务
@@ -254,5 +414,10 @@ func (s *PaymentService) DeletePackage(id uint) error {
 
 // generateTradeNo 生成交易号
 func generateTradeNo() string {
-	return time.Now().Format("20060102150405") + "-" + uuid.New().String()[:8]
+	now := time.Now().Format("20060102150405")
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		return now
+	}
+	return now + "-" + hex.EncodeToString(buf)
 }

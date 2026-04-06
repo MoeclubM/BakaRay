@@ -1,3 +1,5 @@
 /node_modules
 /admin-check
 /.playwright-mcp
+/playwright-report
+/test-results

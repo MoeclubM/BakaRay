@@ -6,8 +6,8 @@ services:
   # BakaRay 管理面板
   bakaray-panel:
     build:
-      context: ..
-      dockerfile: BakaRay/Dockerfile.panel
+      context: .
+      dockerfile: Dockerfile.panel
     container_name: bakaray-panel
     ports:
       - "8500:80"
@@ -42,7 +42,7 @@ services:
       - bakaray_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "bakaray-redis-password", "ping"]
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
       interval: 30s
       timeout: 3s
       retries: 3

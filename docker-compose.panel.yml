@@ -32,7 +32,7 @@ services:
         ipv4_address: 172.28.0.10
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
       interval: 10s
       timeout: 3s
       retries: 3

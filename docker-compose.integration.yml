@@ -43,7 +43,7 @@ services:
       bakaray_test_net:
         ipv4_address: 172.28.0.10
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
       interval: 5s
       timeout: 3s
       retries: 30

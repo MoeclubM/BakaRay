@@ -75,13 +75,22 @@ func (s *RuleService) ListRulesByNode(nodeID uint, enabledOnly bool) ([]models.F
 	return rules, nil
 }
 
-// GetTargets 获取规则的目标列表
-func (s *RuleService) GetTargets(ruleID uint) ([]models.Target, error) {
+// ListTargets 获取规则目标列表。
+func (s *RuleService) ListTargets(ruleID uint, enabledOnly bool) ([]models.Target, error) {
 	var targets []models.Target
-	if err := s.db.Where("rule_id = ? AND enabled = ?", ruleID, true).Find(&targets).Error; err != nil {
+	query := s.db.Where("rule_id = ?", ruleID)
+	if enabledOnly {
+		query = query.Where("enabled = ?", true)
+	}
+	if err := query.Order("id ASC").Find(&targets).Error; err != nil {
 		return nil, err
 	}
 	return targets, nil
+}
+
+// GetTargets 获取规则的目标列表
+func (s *RuleService) GetTargets(ruleID uint) ([]models.Target, error) {
+	return s.ListTargets(ruleID, true)
 }
 
 // AddTarget 添加转发目标
@@ -114,6 +123,10 @@ func (s *RuleService) GetGostRule(ruleID uint) (*models.GostRule, error) {
 // CreateGostRule 创建 gost 协议配置
 func (s *RuleService) CreateGostRule(rule *models.GostRule) error {
 	return s.db.Create(rule).Error
+}
+
+func (s *RuleService) DeleteGostRule(ruleID uint) error {
+	return s.db.Where("rule_id = ?", ruleID).Delete(&models.GostRule{}).Error
 }
 
 // UpsertGostRule creates or updates gost config for a rule.
@@ -158,6 +171,10 @@ func (s *RuleService) GetIPTablesRule(ruleID uint) (*models.IPTablesRule, error)
 // CreateIPTablesRule 创建 iptables 协议配置
 func (s *RuleService) CreateIPTablesRule(rule *models.IPTablesRule) error {
 	return s.db.Create(rule).Error
+}
+
+func (s *RuleService) DeleteIPTablesRule(ruleID uint) error {
+	return s.db.Where("rule_id = ?", ruleID).Delete(&models.IPTablesRule{}).Error
 }
 
 // UpsertIPTablesRule creates or updates iptables config for a rule.

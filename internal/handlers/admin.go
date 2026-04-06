@@ -2,12 +2,8 @@ package handlers
 
 import (
 	"errors"
-	"net"
 	"net/http"
-	"net/url"
 	"strconv"
-	"strings"
-	"time"
 
 	"bakaray/internal/logger"
 	"bakaray/internal/middleware"
@@ -632,26 +628,9 @@ func (h *AdminHandler) ReloadNode(c *gin.Context) {
 		return
 	}
 
-	reloadURL := buildNodeURL(node.Host, node.Port) + "/reload"
-	req, err := http.NewRequest(http.MethodPost, reloadURL, nil)
-	if err != nil {
-		logger.Error("ReloadNode: build request failed", err, "node_id", id, "url", reloadURL, "request_id", requestID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "生成请求失败"})
-		return
-	}
-	req.Header.Set("X-Node-Secret", node.Secret)
-
-	client := &http.Client{Timeout: 5 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		logger.Error("ReloadNode: request failed", err, "node_id", id, "url", reloadURL, "request_id", requestID)
+	if err := reloadNode(node); err != nil {
+		logger.Error("ReloadNode: request failed", err, "node_id", id, "request_id", requestID)
 		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "下发失败：节点不可达"})
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		logger.Warn("ReloadNode: node returned non-200", "node_id", id, "url", reloadURL, "status", resp.StatusCode, "request_id", requestID)
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "下发失败：节点响应异常"})
 		return
 	}
 
@@ -661,44 +640,6 @@ func (h *AdminHandler) ReloadNode(c *gin.Context) {
 		"code":    0,
 		"message": "热更新指令已下发",
 	})
-}
-
-func buildNodeURL(host string, port int) string {
-	host = strings.TrimSpace(host)
-	if host == "" {
-		return ""
-	}
-
-	if strings.Contains(host, "://") {
-		if u, err := url.Parse(host); err == nil {
-			if u.Scheme == "" {
-				u.Scheme = "http"
-			}
-			if u.Host == "" {
-				u.Host = host
-			}
-
-			if u.Port() == "" && port > 0 {
-				u.Host = net.JoinHostPort(u.Hostname(), strconv.Itoa(port))
-			}
-
-			return strings.TrimRight(u.String(), "/")
-		}
-	}
-
-	if ip := net.ParseIP(host); ip != nil && port > 0 {
-		return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
-	}
-
-	if _, _, err := net.SplitHostPort(host); err == nil {
-		return "http://" + strings.TrimRight(host, "/")
-	}
-
-	if port > 0 {
-		return "http://" + net.JoinHostPort(host, strconv.Itoa(port))
-	}
-
-	return "http://" + strings.TrimRight(host, "/")
 }
 
 // --- 用户管理 ---

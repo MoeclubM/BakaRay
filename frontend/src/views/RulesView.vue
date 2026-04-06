@@ -93,7 +93,7 @@
 
             <v-select
               v-model="form.node_id"
-              :items="nodes"
+              :items="availableNodes"
               item-title="name"
               item-value="id"
               label="选择节点"
@@ -195,21 +195,20 @@
                 <v-divider class="my-4" />
                 <div class="text-subtitle-1 font-weight-bold mb-2">Gost 配置</div>
                 <v-row>
-                  <v-col cols="12" md="4">
+                  <v-col cols="12" md="6">
                     <v-select
                       v-model="form.gost_config.transport"
-                      :items="['tcp', 'udp', 'quic']"
+                      :items="['tcp', 'udp']"
                       label="传输类型"
                     />
                   </v-col>
-                  <v-col cols="12" md="4" class="d-flex align-center">
-                    <v-switch v-model="form.gost_config.tls" label="TLS" color="primary" hide-details />
-                  </v-col>
-                  <v-col cols="12" md="4">
+                  <v-col cols="12" md="6">
                     <v-text-field v-model.number="form.gost_config.timeout" label="超时(秒)" type="number" min="0" />
                   </v-col>
                 </v-row>
-                <v-text-field v-model="form.gost_config.chain" label="代理链(可选)" />
+                <v-alert type="info" variant="tonal" density="compact">
+                  首版 gost 仅支持 Linux 用户态 TCP/UDP 端口转发。
+                </v-alert>
               </div>
             </v-expand-transition>
 
@@ -264,7 +263,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { ruleAPI, nodeAPI } from '@/api'
 import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
@@ -309,6 +308,13 @@ function defaultForm() {
 }
 
 const form = ref(defaultForm())
+const availableNodes = computed(() => {
+  const selectedProtocol = form.value.protocol
+  return (nodes.value || []).filter((node) => {
+    const protocols = Array.isArray(node.protocols) ? node.protocols : []
+    return protocols.length === 0 || protocols.includes(selectedProtocol)
+  })
+})
 
 const headers = [
   { title: '状态', key: 'enabled', width: 80 },
@@ -322,14 +328,8 @@ const headers = [
 ]
 
 const protocols = [
-  { title: 'TCP 转发 (forward)', value: 'forward' },
-  { title: 'SOCKS5 代理 (socks5)', value: 'socks5' },
-  { title: 'HTTP 代理 (http)', value: 'http' },
-  { title: 'Shadowsocks (ss)', value: 'ss' },
-  { title: 'QUIC', value: 'quic' },
-  { title: 'WebSocket (ws)', value: 'ws' },
-  { title: 'WebSocket Secure (wss)', value: 'wss' },
-  { title: 'HTTP/2 (http2)', value: 'http2' }
+  { title: 'Gost 用户态转发', value: 'gost' },
+  { title: '内核转发 (iptables)', value: 'iptables' }
 ]
 const modes = [
   { title: '直连', value: 'direct' },
@@ -350,7 +350,7 @@ function formatDate(date) {
 }
 
 function getProtocolColor(protocol) {
-  const colors = { gost: 'blue', iptables: 'orange', echo: 'purple' }
+  const colors = { gost: 'blue', iptables: 'orange' }
   return colors[protocol] || 'grey'
 }
 
@@ -410,8 +410,8 @@ async function loadRuleDetail(id) {
       })) : [{ host: '', port: 0, weight: 1, enabled: true }],
       gost_config: detail.gost_config ? {
         transport: detail.gost_config.transport || 'tcp',
-        tls: !!detail.gost_config.tls,
-        chain: detail.gost_config.chain || '',
+        tls: false,
+        chain: '',
         timeout: detail.gost_config.timeout || 0
       } : defaultForm().gost_config,
       iptables_config: detail.iptables_config ? {
@@ -458,6 +458,10 @@ async function saveRule() {
     if (!data.node_id) delete data.node_id
     if (!data.targets || data.targets.length === 0) {
       showSnackbar('请至少添加一个有效目标', 'error')
+      return
+    }
+    if (data.protocol === 'gost' && data.speed_limit > 0) {
+      showSnackbar('gost 规则暂不支持限速，请改用内核转发', 'error')
       return
     }
 
@@ -518,7 +522,10 @@ async function loadRules() {
 async function loadNodes() {
   try {
     const response = await nodeAPI.list()
-    nodes.value = response.data || []
+    nodes.value = (response.data || []).map((node) => ({
+      ...node,
+      protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost' || item === 'iptables') : []
+    }))
   } catch {
     nodes.value = []
   }

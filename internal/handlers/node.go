@@ -16,9 +16,9 @@ import (
 
 // NodeHandler 节点处理器
 type NodeHandler struct {
-	nodeService  *services.NodeService
-	ruleService  *services.RuleService
-	userService  *services.UserService
+	nodeService *services.NodeService
+	ruleService *services.RuleService
+	userService *services.UserService
 }
 
 // NewNodeHandler 创建节点处理器
@@ -101,10 +101,10 @@ func (h *NodeHandler) GetNode(c *gin.Context) {
 
 // NodeHeartbeatRequest 节点心跳请求
 type NodeHeartbeatRequest struct {
-	NodeID uint             `json:"node_id" binding:"required"`
-	Secret string          `json:"secret" binding:"required"`
-	Probe  *models.ProbeData `json:"probe"`
-	TrafficStats map[string]int64 `json:"traffic_stats"`
+	NodeID       uint              `json:"node_id" binding:"required"`
+	Secret       string            `json:"secret" binding:"required"`
+	Probe        *models.ProbeData `json:"probe"`
+	TrafficStats map[string]int64  `json:"traffic_stats"`
 }
 
 // NodeHeartbeat 节点心跳
@@ -152,6 +152,7 @@ func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 				if disabled {
 					disabledCount++
 					logger.Warn("NodeHeartbeat: rule disabled due to traffic limit", "rule_id", ruleID, "node_id", req.NodeID, "request_id", requestID)
+					triggerNodeReloadAsync(h.nodeService, requestID, req.NodeID)
 				}
 				_ = h.ruleService.CreateTrafficLog(&models.TrafficLog{
 					RuleID:    ruleID,
@@ -170,7 +171,7 @@ func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 	log.Info("NodeHeartbeat success", "node_id", req.NodeID, "node_name", node.Name)
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "心跳成功",
 	})
 }
@@ -222,21 +223,21 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		Iface string `json:"iface"`
 	}
 	type NodeRule struct {
-		ID             uint               `json:"id"`
-		Name           string             `json:"name"`
-		Protocol       string             `json:"protocol"`
-		ListenPort     int                `json:"listen_port"`
-		Mode           string             `json:"mode"`
-		Targets        []NodeTarget       `json:"targets"`
-		SpeedLimit     int64              `json:"speed_limit"`
-		Enabled        bool               `json:"enabled"`
+		ID             uint                `json:"id"`
+		Name           string              `json:"name"`
+		Protocol       string              `json:"protocol"`
+		ListenPort     int                 `json:"listen_port"`
+		Mode           string              `json:"mode"`
+		Targets        []NodeTarget        `json:"targets"`
+		SpeedLimit     int64               `json:"speed_limit"`
+		Enabled        bool                `json:"enabled"`
 		GostConfig     *NodeGostConfig     `json:"gost_config,omitempty"`
 		IPTablesConfig *NodeIPTablesConfig `json:"iptables_config,omitempty"`
 	}
 
 	nodeRules := make([]NodeRule, 0, len(rules))
 	for _, r := range rules {
-		targets, _ := h.ruleService.GetTargets(r.ID)
+		targets, _ := h.ruleService.ListTargets(r.ID, true)
 		nodeTargets := make([]NodeTarget, 0, len(targets))
 		for _, t := range targets {
 			nodeTargets = append(nodeTargets, NodeTarget{
@@ -303,9 +304,9 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 
 // NodeReportRequest 节点上报请求
 type NodeReportRequest struct {
-	NodeID uint                `json:"node_id" binding:"required"`
-	Secret string             `json:"secret" binding:"required"`
-	Report *models.ProbeData  `json:"report"`
+	NodeID uint              `json:"node_id" binding:"required"`
+	Secret string            `json:"secret" binding:"required"`
+	Report *models.ProbeData `json:"report"`
 }
 
 // NodeReport 节点上报数据
@@ -336,7 +337,7 @@ func (h *NodeHandler) NodeReport(c *gin.Context) {
 	log.Info("NodeReport success", "node_id", req.NodeID, "node_name", node.Name)
 
 	c.JSON(http.StatusOK, gin.H{
-		"code": 0,
+		"code":    0,
 		"message": "上报成功",
 	})
 }

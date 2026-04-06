@@ -73,7 +73,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(userService)
 	userHandler := handlers.NewUserHandler(userService, ruleService)
 	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService, userService)
-	ruleHandler := handlers.NewRuleHandler(ruleService)
+	ruleHandler := handlers.NewRuleHandler(ruleService, nodeService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
 	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService, siteConfigService)
 

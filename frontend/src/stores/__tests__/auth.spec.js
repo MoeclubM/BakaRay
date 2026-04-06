@@ -17,15 +17,16 @@ Object.defineProperty(global, 'localStorage', {
 })
 
 // Mock API modules
-const mockAuthAPI = {
-  login: vi.fn(),
-  register: vi.fn(),
-  refresh: vi.fn()
-}
-
-const mockUserAPI = {
-  getProfile: vi.fn()
-}
+const { mockAuthAPI, mockUserAPI } = vi.hoisted(() => ({
+  mockAuthAPI: {
+    login: vi.fn(),
+    register: vi.fn(),
+    refresh: vi.fn()
+  },
+  mockUserAPI: {
+    getProfile: vi.fn()
+  }
+}))
 
 vi.mock('@/api', () => ({
   authAPI: mockAuthAPI,
@@ -136,8 +137,8 @@ describe('auth store', () => {
       store.logout()
       expect(store.token).toBeNull()
       expect(store.user).toBeNull()
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('token', null)
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('user', null)
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('token')
+      expect(localStorageMock.removeItem).toHaveBeenCalledWith('user')
     })
   })
 
@@ -185,33 +186,38 @@ describe('auth store', () => {
       expect(store.token).toBe('new-token')
     })
 
-    it('should logout on refresh failure', async () => {
+    it('should keep current session on refresh rejection response', async () => {
       mockAuthAPI.refresh.mockResolvedValue({ code: -1 })
       const store = useAuthStore()
       store.token = 'old-token'
       store.user = { id: 1 }
       const result = await store.refreshToken()
       expect(result).toBe(false)
-      expect(store.token).toBeNull()
-      expect(store.user).toBeNull()
+      expect(store.token).toBe('old-token')
+      expect(store.user).toEqual({ id: 1 })
     })
   })
 
-  describe('persist', () => {
-    it('should save token and user to localStorage', () => {
+  describe('localStorage persistence', () => {
+    it('should persist token and user after successful login', async () => {
+      mockAuthAPI.login.mockResolvedValue({ code: 0, token: 'persisted-token' })
+      mockUserAPI.getProfile.mockResolvedValue({ code: 0, data: { id: 1, username: 'test' } })
+
       const store = useAuthStore()
-      store.token = 'test-token'
-      store.user = { id: 1, username: 'test' }
-      store.persist()
-      expect(localStorageMock.setItem).toHaveBeenCalledWith('token', 'test-token')
+      const result = await store.login('test', 'password')
+
+      expect(result).toBe(true)
+      expect(localStorageMock.setItem).toHaveBeenCalledWith('token', 'persisted-token')
       expect(localStorageMock.setItem).toHaveBeenCalledWith('user', JSON.stringify({ id: 1, username: 'test' }))
     })
 
-    it('should remove data from localStorage on logout', () => {
+    it('should remove persisted data on logout', () => {
       const store = useAuthStore()
-      store.token = null
-      store.user = null
-      store.persist()
+      store.token = 'persisted-token'
+      store.user = { id: 1, username: 'test' }
+
+      store.logout()
+
       expect(localStorageMock.removeItem).toHaveBeenCalledWith('token')
       expect(localStorageMock.removeItem).toHaveBeenCalledWith('user')
     })

@@ -45,7 +45,7 @@ func (s *NodeService) CreateNode(name, host string, port int, secret string, gro
 		Secret:      secret,
 		Status:      "offline",
 		NodeGroupID: groupID,
-		Protocols:   models.StringSlice(protocols),
+		Protocols:   NormalizeNodeProtocols(protocols),
 		Multiplier:  multiplier,
 		Region:      region,
 	}
@@ -322,7 +322,7 @@ func (s *NodeService) UpdateNode(id uint, updates map[string]interface{}) error 
 	if raw, ok := updates["protocols"]; ok {
 		switch v := raw.(type) {
 		case []string:
-			updates["protocols"] = models.StringSlice(v)
+			updates["protocols"] = NormalizeNodeProtocols(v)
 		case []interface{}:
 			protocols := make([]string, 0, len(v))
 			for _, item := range v {
@@ -330,19 +330,19 @@ func (s *NodeService) UpdateNode(id uint, updates map[string]interface{}) error 
 					protocols = append(protocols, s)
 				}
 			}
-			updates["protocols"] = models.StringSlice(protocols)
+			updates["protocols"] = NormalizeNodeProtocols(protocols)
 		case string:
 			// Accept JSON string or single protocol.
 			var protocols []string
 			if err := json.Unmarshal([]byte(v), &protocols); err == nil {
-				updates["protocols"] = models.StringSlice(protocols)
+				updates["protocols"] = NormalizeNodeProtocols(protocols)
 			} else if v != "" {
-				updates["protocols"] = models.StringSlice([]string{v})
+				updates["protocols"] = NormalizeNodeProtocols([]string{v})
 			} else {
-				updates["protocols"] = models.StringSlice(nil)
+				updates["protocols"] = NormalizeNodeProtocols(nil)
 			}
 		default:
-			updates["protocols"] = models.StringSlice(nil)
+			updates["protocols"] = NormalizeNodeProtocols(nil)
 		}
 	}
 

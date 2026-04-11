@@ -8,15 +8,16 @@ import (
 
 // User 用户表
 type User struct {
-	ID           uint      `json:"id" gorm:"primaryKey"`
-	Username     string    `json:"username" gorm:"uniqueIndex;size:64;not null"`
-	PasswordHash string    `json:"-" gorm:"size:128;not null"`
-	Balance      int64     `json:"balance" gorm:"default:0"` // 单位：字节（剩余可用流量）
-	UserGroupID  uint      `json:"user_group_id"`
-	Role         string    `json:"role" gorm:"size:20;default:'user'"` // admin, user
-	IsAdmin      bool      `json:"is_admin" gorm:"-"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             uint      `json:"id" gorm:"primaryKey"`
+	Username       string    `json:"username" gorm:"uniqueIndex;size:64;not null"`
+	PasswordHash   string    `json:"-" gorm:"size:128;not null"`
+	Balance        int64     `json:"balance" gorm:"default:0"`         // 单位：分（账户余额）
+	TrafficBalance int64     `json:"traffic_balance" gorm:"default:0"` // 单位：字节（剩余流量）
+	UserGroupID    uint      `json:"user_group_id"`
+	Role           string    `json:"role" gorm:"size:20;default:'user'"` // admin, user
+	IsAdmin        bool      `json:"is_admin" gorm:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 func (u *User) AfterFind(_ *gorm.DB) error {
@@ -137,6 +138,7 @@ type PaymentConfig struct {
 	ID          uint      `json:"id" gorm:"primaryKey"`
 	Name        string    `json:"name" gorm:"size:128;not null"`
 	Provider    string    `json:"provider" gorm:"size:32;not null"` // epay, custom
+	PayType     string    `json:"pay_type" gorm:"size:32"`          // epay 类型，如 alipay/wxpay/qqpay/usdt
 	MerchantID  string    `json:"merchant_id" gorm:"size:64"`
 	MerchantKey string    `json:"merchant_key" gorm:"size:255"`
 	APIURL      string    `json:"api_url" gorm:"size:255"`

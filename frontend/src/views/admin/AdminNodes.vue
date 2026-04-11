@@ -2,11 +2,6 @@
   <div>
     <div class="d-flex align-center mb-6">
       <h1 class="text-h4">节点管理</h1>
-      <v-spacer />
-      <v-btn color="primary" @click="showCreateDialog = true">
-        <v-icon start>mdi-plus</v-icon>
-        添加节点
-      </v-btn>
     </div>
 
     <v-card>
@@ -51,15 +46,16 @@
           <div class="text-center py-12">
             <v-icon size="64" color="grey">mdi-server-network-off</v-icon>
             <div class="text-h6 mt-4 text-grey">暂无节点</div>
+            <div class="text-body-2 mt-2 text-grey">节点会在安装脚本首次执行后自动注册</div>
           </div>
         </template>
       </v-data-table>
     </v-card>
 
-    <!-- 创建/编辑节点对话框 -->
+    <!-- 编辑节点对话框 -->
     <v-dialog v-model="showCreateDialog" max-width="600" persistent>
       <v-card>
-        <v-card-title>{{ editingNode ? '编辑节点' : '添加节点' }}</v-card-title>
+        <v-card-title>编辑节点</v-card-title>
         <v-card-text>
           <v-form ref="formRef">
             <v-text-field
@@ -87,16 +83,6 @@
                 />
               </v-col>
             </v-row>
-
-            <v-text-field
-              v-model="form.secret"
-              label="认证密钥"
-              :type="showSecret ? 'text' : 'password'"
-              :append-inner-icon="showSecret ? 'mdi-eye-off' : 'mdi-eye'"
-              @click:append-inner="showSecret = !showSecret"
-              :rules="[v => !!v || '请输入认证密钥']"
-              hint="用于节点与面板通信的密钥"
-            />
 
             <v-select
               v-model="form.node_group_id"
@@ -174,7 +160,6 @@ const deleting = ref(false)
 
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
-const showSecret = ref(false)
 const editingNode = ref(null)
 const deletingNode = ref(null)
 const formRef = ref(null)
@@ -183,7 +168,6 @@ const form = ref({
   name: '',
   host: '',
   port: 8081,
-  secret: '',
   node_group_id: null,
   protocols: ['gost'],
   region: '',
@@ -208,8 +192,13 @@ function formatDate(date) {
 function editNode(node) {
   editingNode.value = node
   form.value = {
-    ...node,
-    protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost']
+    name: node.name,
+    host: node.host,
+    port: node.port,
+    node_group_id: node.node_group_id ?? null,
+    protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost'],
+    region: node.region || '',
+    multiplier: node.multiplier || 1
   }
   showCreateDialog.value = true
 }
@@ -226,7 +215,6 @@ function closeDialog() {
     name: '',
     host: '',
     port: 8081,
-    secret: '',
     node_group_id: null,
     protocols: ['gost'],
     region: '',
@@ -235,18 +223,15 @@ function closeDialog() {
 }
 
 async function saveNode() {
+  if (!editingNode.value) return
+
   const { valid } = await formRef.value.validate()
   if (!valid) return
 
   saving.value = true
   try {
-    if (editingNode.value) {
-      await adminAPI.nodes.update(editingNode.value.id, form.value)
-      showSnackbar('节点更新成功', 'success')
-    } else {
-      await adminAPI.nodes.create(form.value)
-      showSnackbar('节点创建成功', 'success')
-    }
+    await adminAPI.nodes.update(editingNode.value.id, form.value)
+    showSnackbar('节点更新成功', 'success')
     closeDialog()
     loadNodes()
   } catch (error) {

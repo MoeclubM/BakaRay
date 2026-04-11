@@ -46,12 +46,13 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"id":          user.ID,
-			"username":    user.Username,
-			"balance":     user.Balance,
-			"user_group":  user.UserGroupID,
-			"role":        user.Role,
-			"created_at":  user.CreatedAt,
+			"id":              user.ID,
+			"username":        user.Username,
+			"balance":         user.Balance,
+			"traffic_balance": user.TrafficBalance,
+			"user_group_id":   user.UserGroupID,
+			"role":            user.Role,
+			"created_at":      user.CreatedAt,
 		},
 	})
 }
@@ -132,7 +133,7 @@ func (h *UserHandler) GetTrafficStats(c *gin.Context) {
 	user, _ := h.userService.GetUserByID(userID)
 	remaining := int64(0)
 	if user != nil {
-		remaining = user.Balance - usedTotal
+		remaining = user.TrafficBalance - usedTotal
 		if remaining < 0 {
 			remaining = 0
 		}

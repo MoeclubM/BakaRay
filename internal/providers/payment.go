@@ -67,14 +67,33 @@ func (p *EpayProvider) Name() string {
 
 // CreateOrder 创建支付订单
 func (p *EpayProvider) CreateOrder(req *CreateOrderRequest) (*CreateOrderResponse, error) {
+	payType := strings.TrimSpace(req.Extra["type"])
+	if payType == "" {
+		payType = strings.TrimSpace(req.Extra["pay_type"])
+	}
+	switch strings.ToLower(payType) {
+	case "wechat":
+		payType = "wxpay"
+	case "qq":
+		payType = "qqpay"
+	}
+	if payType == "" {
+		payType = "alipay"
+	}
+
+	notifyURL := strings.TrimSpace(req.NotifyURL)
+	if notifyURL == "" {
+		notifyURL = strings.TrimSpace(p.NotifyURL)
+	}
+
 	params := map[string]string{
 		"pid":          p.MerchantID,
-		"type":         "alipay", // 默认支付宝，可扩展
+		"type":         payType,
 		"out_trade_no": req.TradeNo,
-		"notify_url":   p.NotifyURL,
+		"notify_url":   notifyURL,
 		"return_url":   req.ReturnURL,
-		"amount":       fmt.Sprintf("%.2f", float64(req.Amount)/100),
-		"subject":      req.Subject,
+		"money":        fmt.Sprintf("%.2f", float64(req.Amount)/100),
+		"name":         req.Subject,
 	}
 
 	// 生成签名
@@ -83,7 +102,7 @@ func (p *EpayProvider) CreateOrder(req *CreateOrderRequest) (*CreateOrderRespons
 	params["sign_type"] = "MD5"
 
 	// 构建支付URL
-	payURL := p.APIURL + "/submit.php?" + p.buildQueryString(params)
+	payURL := strings.TrimRight(p.APIURL, "/") + "/submit.php?" + p.buildQueryString(params)
 
 	return &CreateOrderResponse{
 		PayURL:    payURL,
@@ -108,7 +127,10 @@ func (p *EpayProvider) VerifyCallback(params map[string]string) (*VerifyResult, 
 
 	// 提取订单信息
 	tradeNo := params["out_trade_no"]
-	amountStr := params["amount"]
+	amountStr := params["money"]
+	if amountStr == "" {
+		amountStr = params["amount"]
+	}
 	status := params["trade_status"]
 
 	// 解析金额（分）

@@ -171,7 +171,10 @@ func (s *RuleService) UpdateTrafficUsed(ruleID uint, bytes int64) error {
 
 	// 更新流量，限制不超过 traffic_limit（如果有设置）
 	return s.db.Model(&models.ForwardingRule{}).Where("id = ? AND (traffic_limit = 0 OR traffic_used < traffic_limit)", ruleID).
-		Update("traffic_used", gorm.Expr("LEAST(traffic_used + ?, COALESCE(traffic_limit, 0))", bytes)).Error
+		Update("traffic_used", gorm.Expr(
+			"CASE WHEN COALESCE(traffic_limit, 0) = 0 THEN traffic_used + ? WHEN traffic_used + ? > traffic_limit THEN traffic_limit ELSE traffic_used + ? END",
+			bytes, bytes, bytes,
+		)).Error
 }
 
 // UpdateTrafficUsedWithDisable 更新流量并自动禁用超限规则

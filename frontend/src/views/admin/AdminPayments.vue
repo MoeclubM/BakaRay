@@ -33,6 +33,10 @@
                 <v-list-item-title>API地址</v-list-item-title>
                 <v-list-item-subtitle>{{ payment.api_url }}</v-list-item-subtitle>
               </v-list-item>
+              <v-list-item>
+                <v-list-item-title>支付类型</v-list-item-title>
+                <v-list-item-subtitle>{{ payment.pay_type || '-' }}</v-list-item-subtitle>
+              </v-list-item>
             </v-list>
           </v-card-text>
           <v-card-actions>
@@ -101,8 +105,10 @@
             />
 
             <v-text-field
-              v-model="form.notify_url"
-              label="回调地址"
+              v-model="form.pay_type"
+              label="支付类型"
+              hint="易支付请填写 alipay、wxpay、qqpay 或 usdt"
+              persistent-hint
             />
 
             <v-switch
@@ -159,10 +165,10 @@ const formRef = ref(null)
 const form = ref({
   name: '',
   provider: 'epay',
+  pay_type: 'alipay',
   merchant_id: '',
   merchant_key: '',
   api_url: '',
-  notify_url: '',
   enabled: true
 })
 
@@ -173,7 +179,7 @@ const providers = [
 
 function editPayment(payment) {
   editingPayment.value = payment
-  form.value = { ...payment }
+  form.value = { ...payment, pay_type: payment.pay_type || 'alipay' }
   showCreateDialog.value = true
 }
 
@@ -188,10 +194,10 @@ function closeDialog() {
   form.value = {
     name: '',
     provider: 'epay',
+    pay_type: 'alipay',
     merchant_id: '',
     merchant_key: '',
     api_url: '',
-    notify_url: '',
     enabled: true
   }
 }

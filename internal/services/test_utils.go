@@ -2,20 +2,23 @@ package services
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
 	"bakaray/internal/models"
 
+	"github.com/glebarez/sqlite"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 // setupTestDB creates an in-memory SQLite database for testing
 func setupTestDB(t *testing.T) *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:%s-%d?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"), time.Now().UnixNano())
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	require.NoError(t, err)
 
 	// Auto-migrate all tables
@@ -24,11 +27,14 @@ func setupTestDB(t *testing.T) *gorm.DB {
 		&models.Node{},
 		&models.NodeAllowedGroup{},
 		&models.ForwardingRule{},
+		&models.Target{},
+		&models.GostRule{},
 		&models.Package{},
 		&models.Order{},
 		&models.UserGroup{},
 		&models.NodeGroup{},
 		&models.PaymentConfig{},
+		&models.TrafficLog{},
 	)
 	require.NoError(t, err)
 
@@ -45,8 +51,12 @@ func cleanupTestDB(db *gorm.DB) {
 // setupTestRedis creates a fake Redis client for testing
 func setupTestRedis(t *testing.T) *redis.Client {
 	client := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-		DB:   15,
+		Addr:         "localhost:6379",
+		DB:           15,
+		MaxRetries:   0,
+		DialTimeout:  200 * time.Millisecond,
+		ReadTimeout:  200 * time.Millisecond,
+		WriteTimeout: 200 * time.Millisecond,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -74,10 +84,10 @@ func cleanRedisKeys(client *redis.Client) {
 // createTestUser creates a test user for testing
 func createTestUser(t *testing.T, db *gorm.DB, username string) *models.User {
 	user := &models.User{
-		Username:    username,
+		Username:     username,
 		PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/nMskyB.3RJHXxkhR6R6J2",
-		Balance:     1000,
-		Role:        "user",
+		Balance:      1000,
+		Role:         "user",
 	}
 	require.NoError(t, db.Create(user).Error)
 	return user
@@ -86,10 +96,10 @@ func createTestUser(t *testing.T, db *gorm.DB, username string) *models.User {
 // createTestAdmin creates a test admin user
 func createTestAdmin(t *testing.T, db *gorm.DB, username string) *models.User {
 	user := &models.User{
-		Username:    username,
+		Username:     username,
 		PasswordHash: "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/nMskyB.3RJHXxkhR6R6J2",
-		Balance:     10000,
-		Role:        "admin",
+		Balance:      10000,
+		Role:         "admin",
 	}
 	require.NoError(t, db.Create(user).Error)
 	return user
@@ -131,15 +141,15 @@ func createTestPackage(t *testing.T, db *gorm.DB, name string) *models.Package {
 // createTestRule creates a test forwarding rule
 func createTestRule(t *testing.T, db *gorm.DB, nodeID uint, name string) *models.ForwardingRule {
 	rule := &models.ForwardingRule{
-		NodeID:     nodeID,
-		Name:       name,
-		Protocol:   "gost",
-		Enabled:    true,
-		TrafficUsed: 0,
+		NodeID:       nodeID,
+		Name:         name,
+		Protocol:     "gost",
+		Enabled:      true,
+		TrafficUsed:  0,
 		TrafficLimit: 1000000000,
-		SpeedLimit:  1000,
-		Mode:       "direct",
-		ListenPort: 8000 + int(nodeID),
+		SpeedLimit:   1000,
+		Mode:         "direct",
+		ListenPort:   8000 + int(nodeID),
 	}
 	require.NoError(t, db.Create(rule).Error)
 	return rule

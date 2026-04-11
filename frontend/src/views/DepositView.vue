@@ -10,7 +10,7 @@
         <v-card>
           <v-card-text class="text-center py-8">
             <v-icon size="64" color="primary">mdi-wallet</v-icon>
-            <div class="text-h3 mt-4 font-weight-bold">{{ formatMoney(userBalance) }}</div>
+            <div class="text-h3 mt-4 font-weight-bold">{{ formatCents(userBalance) }}</div>
             <div class="text-grey mt-2">当前余额</div>
           </v-card-text>
         </v-card>
@@ -31,7 +31,7 @@
                   @click="selectedAmount = amount"
                   size="large"
                 >
-                  {{ formatMoney(amount) }}
+                  {{ formatYuan(amount) }}
                 </v-btn>
               </v-col>
               <v-col cols="6" sm="4" md="3">
@@ -51,16 +51,25 @@
 
             <div class="text-subtitle-1 mb-4">选择支付方式</div>
 
-            <v-row>
-              <v-col v-for="method in paymentMethods" :key="method.value" cols="6" sm="4">
+            <v-alert
+              v-if="paymentMethods.length === 0"
+              type="warning"
+              variant="tonal"
+            >
+              暂无可用支付渠道，请先在后台启用支付配置。
+            </v-alert>
+
+            <v-row v-else>
+              <v-col v-for="method in paymentMethods" :key="method.id" cols="6" sm="4">
                 <v-card
                   variant="outlined"
-                  :class="{ 'border-primary': selectedMethod === method.value }"
-                  @click="selectedMethod = method.value"
+                  :class="{ 'border-primary': selectedPaymentId === method.id }"
+                  @click="selectedPaymentId = method.id"
                   class="pa-4 cursor-pointer text-center"
                 >
-                  <v-icon size="32" :color="method.color">{{ method.icon }}</v-icon>
-                  <div class="mt-2 text-body-2">{{ method.label }}</div>
+                  <v-icon size="32" color="primary">mdi-credit-card-outline</v-icon>
+                  <div class="mt-2 text-body-2">{{ method.name }}</div>
+                  <div class="text-caption text-grey mt-1">{{ method.pay_type || method.provider }}</div>
                 </v-card>
               </v-col>
             </v-row>
@@ -74,7 +83,7 @@
               :disabled="!canSubmit"
               @click="handleSubmit"
             >
-              确认支付 ¥{{ formatMoney(actualAmount) }}
+              确认支付 {{ formatYuan(actualAmount) }}
             </v-btn>
           </v-card-text>
         </v-card>
@@ -90,7 +99,7 @@
         :loading="loading"
       >
         <template v-slot:item.amount="{ item }">
-          <span class="text-success font-weight-bold">+{{ formatMoney(item.amount) }}</span>
+          <span class="text-success font-weight-bold">+{{ formatCents(item.amount) }}</span>
         </template>
 
         <template v-slot:item.status="{ item }">
@@ -116,50 +125,52 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { paymentAPI, depositAPI } from '@/api'
+import { paymentAPI, depositAPI, orderAPI } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
 
+const authStore = useAuthStore()
 const { showSnackbar } = useSnackbar()
 
 const loading = ref(false)
 const submitting = ref(false)
-const userBalance = ref(0)
 const selectedAmount = ref(10)
 const customAmount = ref(null)
-const selectedMethod = ref('alipay')
+const selectedPaymentId = ref(null)
 const paymentHistory = ref([])
+const paymentMethods = ref([])
 
 const presetAmounts = [5, 10, 20, 50, 100, 200]
-
-const paymentMethods = [
-  { label: '支付宝', value: 'alipay', icon: 'mdi-alipay', color: 'blue' },
-  { label: '微信支付', value: 'wechat', icon: 'mdi-wechat', color: 'green' },
-  { label: 'USDT', value: 'usdt', icon: 'mdi-currency-usd', color: 'orange' }
-]
+const userBalance = computed(() => authStore.user?.balance || 0)
 
 const headers = [
-  { title: '订单号', key: 'order_no', width: 180 },
+  { title: '订单号', key: 'trade_no', width: 180 },
   { title: '金额', key: 'amount', width: 100 },
-  { title: '支付方式', key: 'method', width: 100 },
+  { title: '支付方式', key: 'pay_type', width: 120 },
   { title: '状态', key: 'status', width: 100 },
   { title: '创建时间', key: 'created_at', width: 180 }
 ]
 
 const actualAmount = computed(() => {
-  if (customAmount.value && customAmount.value > 0) {
+  if (customAmount.value !== null && customAmount.value > 0) {
     return customAmount.value
   }
   return selectedAmount.value || 0
 })
 
 const canSubmit = computed(() => {
-  return actualAmount.value > 0 && selectedMethod.value
+  return actualAmount.value > 0 && selectedPaymentId.value
 })
 
-function formatMoney(amount) {
+function formatYuan(amount) {
   if (!amount) return '¥0.00'
   return '¥' + Number(amount).toFixed(2)
+}
+
+function formatCents(amount) {
+  if (!amount) return '¥0.00'
+  return '¥' + (Number(amount) / 100).toFixed(2)
 }
 
 function formatDate(date) {
@@ -182,8 +193,8 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const res = await depositAPI.create({
-      amount: actualAmount.value,
-      method: selectedMethod.value
+      amount: Math.round(Number(actualAmount.value) * 100),
+      payment_id: selectedPaymentId.value
     })
 
     if (res.code === 0 && res.data?.pay_url) {
@@ -204,9 +215,16 @@ async function handleSubmit() {
 async function loadData() {
   loading.value = true
   try {
-    // 加载充值记录
-    const res = await paymentAPI.list()
-    paymentHistory.value = res.data || []
+    await authStore.fetchProfile()
+    const [methodsRes, ordersRes] = await Promise.all([
+      paymentAPI.list(),
+      orderAPI.list()
+    ])
+    paymentMethods.value = methodsRes.data || []
+    if (!selectedPaymentId.value && paymentMethods.value.length > 0) {
+      selectedPaymentId.value = paymentMethods.value[0].id
+    }
+    paymentHistory.value = (ordersRes.data || []).filter((item) => !item.package_id)
   } catch (error) {
     console.error('Failed to load data:', error)
   } finally {

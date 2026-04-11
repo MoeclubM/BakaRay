@@ -372,8 +372,8 @@ func TestListPackages(t *testing.T) {
 	// 创建不同用户组的套餐
 	packages := []models.Package{
 		{Name: "通用套餐", Traffic: 1024, Price: 1000, UserGroupID: 0},
-		{Name: "VIP套餐", Traffic: 1024*10, Price: 5000, UserGroupID: userGroup.ID},
-		{Name: "VIP专属套餐", Traffic: 1024*20, Price: 8000, UserGroupID: userGroup.ID},
+		{Name: "VIP套餐", Traffic: 1024 * 10, Price: 5000, UserGroupID: userGroup.ID},
+		{Name: "VIP专属套餐", Traffic: 1024 * 20, Price: 8000, UserGroupID: userGroup.ID},
 	}
 	for _, p := range packages {
 		require.NoError(t, svc.CreatePackage(&p))
@@ -387,7 +387,7 @@ func TestListPackages(t *testing.T) {
 	// 测试按用户组筛选 (VIP用户组只能看到通用套餐 + VIP套餐)
 	pkgs, err = svc.ListPackages(userGroup.ID)
 	require.NoError(t, err)
-	require.Len(t, pkgs, 2)
+	require.Len(t, pkgs, 3)
 }
 
 func TestUpdatePackage(t *testing.T) {
@@ -471,46 +471,63 @@ func TestCompleteOrder(t *testing.T) {
 
 	svc := NewPaymentService(db, nil)
 
-	// 创建测试订单
-	tradeNo := generateTradeNo()
-	order := &models.Order{
-		UserID:  user.ID,
-		Amount:  1000,
-		Status:  "pending",
-		TradeNo: tradeNo,
-		PayType: "alipay",
-	}
-	require.NoError(t, db.Create(order).Error)
+	t.Run("充值订单会增加账户余额", func(t *testing.T) {
+		tradeNo := generateTradeNo()
+		order := &models.Order{
+			UserID:    user.ID,
+			PackageID: 0,
+			Amount:    1000,
+			Status:    "pending",
+			TradeNo:   tradeNo,
+			PayType:   "alipay",
+		}
+		require.NoError(t, db.Create(order).Error)
 
-	// 测试完成订单（带流量）
-	err := svc.CompleteOrder(tradeNo, user.ID, 1024*1024*1024)
-	require.NoError(t, err)
+		err := svc.CompleteOrder(tradeNo, user.ID, 1024*1024*1024)
+		require.NoError(t, err)
 
-	// 验证订单状态
-	completedOrder, _ := svc.GetOrderByTradeNo(tradeNo)
-	require.Equal(t, "success", completedOrder.Status)
+		completedOrder, _ := svc.GetOrderByTradeNo(tradeNo)
+		require.Equal(t, "success", completedOrder.Status)
 
-	// 验证用户余额更新
-	var updatedUser models.User
-	db.First(&updatedUser, user.ID)
-	require.Equal(t, int64(1024*1024*1024), updatedUser.Balance)
+		var updatedUser models.User
+		db.First(&updatedUser, user.ID)
+		require.Equal(t, int64(1000), updatedUser.Balance)
+		require.Equal(t, int64(0), updatedUser.TrafficBalance)
+	})
 
-	// 测试完成订单（不带流量）
-	tradeNo2 := generateTradeNo()
-	order2 := &models.Order{
-		UserID:  user.ID,
-		Amount:  2000,
-		Status:  "pending",
-		TradeNo: tradeNo2,
-		PayType: "wechat",
-	}
-	require.NoError(t, db.Create(order2).Error)
+	t.Run("套餐订单会增加流量并更新用户组", func(t *testing.T) {
+		group := &models.UserGroup{Name: "VIP"}
+		require.NoError(t, db.Create(group).Error)
 
-	err = svc.CompleteOrder(tradeNo2, user.ID, 0)
-	require.NoError(t, err)
+		pkg := &models.Package{
+			Name:        "流量套餐",
+			Traffic:     1024 * 1024 * 1024,
+			Price:       2000,
+			UserGroupID: group.ID,
+		}
+		require.NoError(t, db.Create(pkg).Error)
 
-	// 验证用户余额不变
-	var updatedUser2 models.User
-	db.First(&updatedUser2, user.ID)
-	require.Equal(t, int64(1024*1024*1024), updatedUser2.Balance)
+		tradeNo := generateTradeNo()
+		order := &models.Order{
+			UserID:    user.ID,
+			PackageID: pkg.ID,
+			Amount:    pkg.Price,
+			Status:    "pending",
+			TradeNo:   tradeNo,
+			PayType:   "wechat",
+		}
+		require.NoError(t, db.Create(order).Error)
+
+		err := svc.CompleteOrder(tradeNo, user.ID, 0)
+		require.NoError(t, err)
+
+		completedOrder, _ := svc.GetOrderByTradeNo(tradeNo)
+		require.Equal(t, "success", completedOrder.Status)
+
+		var updatedUser models.User
+		db.First(&updatedUser, user.ID)
+		require.Equal(t, int64(1000), updatedUser.Balance)
+		require.Equal(t, pkg.Traffic, updatedUser.TrafficBalance)
+		require.Equal(t, group.ID, updatedUser.UserGroupID)
+	})
 }

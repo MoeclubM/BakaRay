@@ -159,10 +159,10 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"code": 0,
 			"data": gin.H{
-				"order_id":  order.ID,
-				"trade_no":  order.TradeNo,
-				"amount":    order.Amount,
-				"status":    "completed",
+				"order_id": order.ID,
+				"trade_no": order.TradeNo,
+				"amount":   order.Amount,
+				"status":   "completed",
 			},
 			"message": "购买成功",
 		})
@@ -192,9 +192,9 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 
 // GetOrders 获取我的订单
 func (h *PaymentHandler) GetOrders(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
@@ -217,15 +217,17 @@ func (h *PaymentHandler) GetOrders(c *gin.Context) {
 
 // DepositRequest 发起充值请求
 type DepositRequest struct {
-	OrderID uint   `json:"order_id" binding:"required"`
-	PayType string `json:"pay_type" binding:"required"`
+	OrderID   uint   `json:"order_id"`
+	Amount    int64  `json:"amount"`
+	PaymentID uint   `json:"payment_id"`
+	PayType   string `json:"pay_type"`
 }
 
 // Deposit 发起充值
 func (h *PaymentHandler) Deposit(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	var req DepositRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -234,56 +236,86 @@ func (h *PaymentHandler) Deposit(c *gin.Context) {
 		return
 	}
 
-	log.Debug("Deposit request", "order_id", req.OrderID, "pay_type", req.PayType)
+	log.Debug("Deposit request", "order_id", req.OrderID, "amount", req.Amount, "payment_id", req.PaymentID, "pay_type", req.PayType)
 
-	order, err := h.paymentService.GetOrderByID(req.OrderID)
-	if err != nil {
-		logger.Warn("Deposit: order not found", "order_id", req.OrderID, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "订单不存在"})
-		return
+	var order *models.Order
+	var err error
+	if req.OrderID > 0 {
+		order, err = h.paymentService.GetOrderByID(req.OrderID)
+		if err != nil {
+			logger.Warn("Deposit: order not found", "order_id", req.OrderID, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "订单不存在"})
+			return
+		}
+		if order.UserID != userID {
+			logger.Warn("Deposit: unauthorized order access", "order_id", req.OrderID, "order_user_id", order.UserID, "user_id", userID, "request_id", requestID)
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "无权操作此订单"})
+			return
+		}
+		if order.Status == "success" {
+			logger.Warn("Deposit: order already completed", "order_id", req.OrderID, "trade_no", order.TradeNo, "request_id", requestID)
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "订单已完成，无需重复支付"})
+			return
+		}
+		if order.Status != "pending" {
+			logger.Warn("Deposit: order status invalid", "order_id", req.OrderID, "status", order.Status, "request_id", requestID)
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "订单状态异常"})
+			return
+		}
+	} else {
+		if req.Amount <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "充值金额必须大于 0"})
+			return
+		}
 	}
 
-	// 检查订单是否属于当前用户
-	if order.UserID != userID {
-		logger.Warn("Deposit: unauthorized order access", "order_id", req.OrderID, "order_user_id", order.UserID, "user_id", userID, "request_id", requestID)
-		c.JSON(http.StatusForbidden, gin.H{"code": 403, "message": "无权操作此订单"})
-		return
+	var config *models.PaymentConfig
+	if req.PaymentID > 0 {
+		config, err = h.paymentConfigService.GetPaymentConfig(req.PaymentID)
+		if err != nil || !config.Enabled {
+			logger.Warn("Deposit: payment config not found", "payment_id", req.PaymentID, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "支付渠道不存在"})
+			return
+		}
+	} else {
+		config, err = h.paymentConfigService.GetPaymentConfigByType(req.PayType)
+		if err != nil {
+			logger.Warn("Deposit: payment config not found", "pay_type", req.PayType, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "支付渠道不存在"})
+			return
+		}
 	}
 
-	// 检查订单状态
-	if order.Status == "success" {
-		logger.Warn("Deposit: order already completed", "order_id", req.OrderID, "trade_no", order.TradeNo, "request_id", requestID)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "订单已完成，无需重复支付"})
-		return
-	}
-
-	if order.Status != "pending" {
-		logger.Warn("Deposit: order status invalid", "order_id", req.OrderID, "status", order.Status, "request_id", requestID)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "订单状态异常"})
-		return
-	}
-
-	config, err := h.paymentConfigService.GetPaymentConfigByType(req.PayType)
-	if err != nil {
-		logger.Warn("Deposit: payment config not found", "pay_type", req.PayType, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "支付渠道不存在"})
-		return
+	if order == nil {
+		order, err = h.paymentService.CreateOrder(userID, 0, req.Amount, config.Name)
+		if err != nil {
+			logger.Error("Deposit: failed to create recharge order", err, "amount", req.Amount, "payment_id", config.ID, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建充值订单失败"})
+			return
+		}
 	}
 
 	provider := createPaymentProvider(config)
 
-	pkg, _ := h.paymentService.GetPackageByID(order.PackageID)
-	subject := "BakaRay 套餐购买"
-	if pkg.ID > 0 {
-		subject = pkg.Name
+	subject := "BakaRay 账户充值"
+	if order.PackageID > 0 {
+		pkg, _ := h.paymentService.GetPackageByID(order.PackageID)
+		if pkg != nil && pkg.ID > 0 {
+			subject = pkg.Name
+		}
 	}
+
+	notifyURL := fmt.Sprintf("%s/api/deposit/callback", getSiteDomain(c))
 
 	resp, err := provider.CreateOrder(&providers.CreateOrderRequest{
 		TradeNo:   order.TradeNo,
 		Amount:    order.Amount,
 		Subject:   subject,
-		NotifyURL: config.NotifyURL,
+		NotifyURL: notifyURL,
 		ReturnURL: fmt.Sprintf("%s/deposit/callback", getSiteDomain(c)),
+		Extra: map[string]string{
+			"type": config.PayType,
+		},
 	})
 
 	if err != nil {
@@ -378,20 +410,7 @@ func (h *PaymentHandler) PaymentCallback(c *gin.Context) {
 	}
 
 	if strings.EqualFold(result.Status, "TRADE_SUCCESS") || strings.EqualFold(result.Status, "TRADE_FINISHED") {
-		// 获取套餐信息
-		pkg, err := h.paymentService.GetPackageByID(order.PackageID)
-		if err != nil {
-			logger.Error("PaymentCallback: failed to get package", err, "trade_no", result.TradeNo, "package_id", order.PackageID, "request_id", requestID)
-			if c.Request.Method == http.MethodPost {
-				c.String(http.StatusOK, "fail")
-				return
-			}
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取套餐失败"})
-			return
-		}
-
-		// 使用幂等性方法完成订单（带分布式锁）
-		if err := h.paymentService.CompleteOrderWithLock(result.TradeNo, order.UserID, pkg.Traffic); err != nil {
+		if err := h.paymentService.CompleteOrderWithLock(result.TradeNo, order.UserID, 0); err != nil {
 			logger.Error("PaymentCallback: failed to complete order", err, "trade_no", result.TradeNo, "user_id", order.UserID, "package_id", order.PackageID, "request_id", requestID)
 			if c.Request.Method == http.MethodPost {
 				c.String(http.StatusOK, "fail")
@@ -401,7 +420,7 @@ func (h *PaymentHandler) PaymentCallback(c *gin.Context) {
 			return
 		}
 
-		log.Info("PaymentCallback: order completed successfully", "trade_no", result.TradeNo, "user_id", order.UserID, "amount", order.Amount, "traffic", pkg.Traffic, "request_id", requestID)
+		log.Info("PaymentCallback: order completed successfully", "trade_no", result.TradeNo, "user_id", order.UserID, "amount", order.Amount, "package_id", order.PackageID, "request_id", requestID)
 
 		if c.Request.Method == http.MethodPost {
 			c.String(http.StatusOK, "success")
@@ -439,6 +458,7 @@ func (h *PaymentHandler) GetEnabledPayments(c *gin.Context) {
 		ID       uint   `json:"id"`
 		Name     string `json:"name"`
 		Provider string `json:"provider"`
+		PayType  string `json:"pay_type"`
 	}
 
 	methods := make([]PaymentMethod, 0, len(configs))
@@ -450,6 +470,7 @@ func (h *PaymentHandler) GetEnabledPayments(c *gin.Context) {
 			ID:       cfg.ID,
 			Name:     cfg.Name,
 			Provider: cfg.Provider,
+			PayType:  cfg.PayType,
 		})
 	}
 
@@ -462,9 +483,9 @@ func (h *PaymentHandler) GetEnabledPayments(c *gin.Context) {
 
 // GetPaymentConfigs 获取支付配置列表
 func (h *PaymentHandler) GetPaymentConfigs(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	log.Debug("GetPaymentConfigs request")
 
@@ -482,9 +503,9 @@ func (h *PaymentHandler) GetPaymentConfigs(c *gin.Context) {
 
 // CreatePaymentConfig 创建支付配置
 func (h *PaymentHandler) CreatePaymentConfig(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	var cfg models.PaymentConfig
 	if err := c.ShouldBindJSON(&cfg); err != nil {
@@ -508,9 +529,9 @@ func (h *PaymentHandler) CreatePaymentConfig(c *gin.Context) {
 
 // UpdatePaymentConfig 更新支付配置
 func (h *PaymentHandler) UpdatePaymentConfig(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	var updates map[string]interface{}
@@ -535,9 +556,9 @@ func (h *PaymentHandler) UpdatePaymentConfig(c *gin.Context) {
 
 // DeletePaymentConfig 删除支付配置
 func (h *PaymentHandler) DeletePaymentConfig(c *gin.Context) {
-        requestID := c.GetString("request_id")
-        userID := middleware.GetUserID(c)
-        log := logger.WithContext(requestID, userID, "payment")
+	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
+	log := logger.WithContext(requestID, userID, "payment")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 

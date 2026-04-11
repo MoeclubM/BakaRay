@@ -10,7 +10,7 @@ func TestLoad(t *testing.T) {
 		"SERVER_HOST", "SERVER_PORT", "SERVER_MODE",
 		"DB_TYPE", "DB_PATH", "DB_HOST", "DB_PORT", "DB_USERNAME", "DB_PASSWORD", "DB_NAME",
 		"REDIS_HOST", "REDIS_PORT", "REDIS_PASSWORD", "REDIS_DB", "REDIS_POOL_SIZE",
-		"SITE_NAME", "SITE_DOMAIN", "NODE_SECRET", "NODE_REPORT_INTERVAL",
+		"SITE_NAME", "SITE_DOMAIN", "NODE_REPORT_INTERVAL",
 		"JWT_SECRET", "JWT_EXPIRATION",
 		"CONFIG_FILE",
 	}
@@ -52,8 +52,8 @@ func TestLoad(t *testing.T) {
 	if cfg.Database.Username != "root" {
 		t.Errorf("Database.Username = %v, want root", cfg.Database.Username)
 	}
-	if cfg.Site.NodeReportInterval != 300 {
-		t.Errorf("Site.NodeReportInterval = %v, want 300", cfg.Site.NodeReportInterval)
+	if cfg.Site.NodeReportInterval != 30 {
+		t.Errorf("Site.NodeReportInterval = %v, want 30", cfg.Site.NodeReportInterval)
 	}
 	if cfg.JWT.Expiration != 86400 {
 		t.Errorf("JWT.Expiration = %v, want 86400", cfg.JWT.Expiration)

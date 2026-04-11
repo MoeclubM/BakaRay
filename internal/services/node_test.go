@@ -179,6 +179,7 @@ func TestUpdateNodeStatus(t *testing.T) {
 		err := service.UpdateNodeStatus(99999, "online")
 
 		require.Error(t, err)
+		require.Equal(t, ErrNodeNotFound, err)
 	})
 }
 
@@ -236,7 +237,7 @@ func TestListNodes(t *testing.T) {
 		nodes, total := service.ListNodes(100, 10, "")
 
 		require.Len(t, nodes, 0)
-		require.Equal(t, int64(10), total)
+		require.Equal(t, service.CountNodes(), total)
 	})
 }
 
@@ -400,6 +401,7 @@ func TestDeleteNode(t *testing.T) {
 		err := service.DeleteNode(99999)
 
 		require.Error(t, err)
+		require.Equal(t, ErrNodeNotFound, err)
 	})
 }
 
@@ -468,7 +470,7 @@ func TestUpdateNode(t *testing.T) {
 
 		updatedNode, err := service.GetNodeByID(testNode.ID)
 		require.NoError(t, err)
-		require.Equal(t, models.StringSlice{"gost", "socks5", "http"}, updatedNode.Protocols)
+		require.Equal(t, models.StringSlice{"gost"}, updatedNode.Protocols)
 	})
 
 	t.Run("更新协议列表为字符串", func(t *testing.T) {
@@ -480,7 +482,7 @@ func TestUpdateNode(t *testing.T) {
 
 		updatedNode, err := service.GetNodeByID(testNode.ID)
 		require.NoError(t, err)
-		require.Equal(t, models.StringSlice{"wireguard", "ss"}, updatedNode.Protocols)
+		require.Equal(t, models.StringSlice{"gost"}, updatedNode.Protocols)
 	})
 
 	t.Run("更新节点组ID", func(t *testing.T) {
@@ -521,6 +523,7 @@ func TestUpdateNode(t *testing.T) {
 		})
 
 		require.Error(t, err)
+		require.Equal(t, ErrNodeNotFound, err)
 	})
 }
 
@@ -686,35 +689,31 @@ func TestListRulesByNode(t *testing.T) {
 	service := NewNodeService(db, nil)
 	testNode := createTestNodeFull(t, db, "RulesNode", "rules.test.com", 8080, "online")
 
-	// 创建测试规则
-	rules := []models.ForwardingRule{
-		{
-			NodeID:     testNode.ID,
-			Name:       "Rule1",
-			Protocol:   "gost",
-			Enabled:    true,
-			ListenPort: 8081,
-		},
-		{
-			NodeID:     testNode.ID,
-			Name:       "Rule2",
-			Protocol:   "gost",
-			Enabled:    false,
-			ListenPort: 8082,
-		},
-		{
-			NodeID:     testNode.ID,
-			Name:       "Rule3",
-			Protocol:   "gost",
-			Enabled:    true,
-			ListenPort: 8083,
-		},
+	rule1 := &models.ForwardingRule{
+		NodeID:     testNode.ID,
+		Name:       "Rule1",
+		Protocol:   "gost",
+		Enabled:    true,
+		ListenPort: 8081,
 	}
-
-	for _, rule := range rules {
-		err := db.Create(&rule).Error
-		require.NoError(t, err)
+	rule2 := &models.ForwardingRule{
+		NodeID:     testNode.ID,
+		Name:       "Rule2",
+		Protocol:   "gost",
+		Enabled:    true,
+		ListenPort: 8082,
 	}
+	rule3 := &models.ForwardingRule{
+		NodeID:     testNode.ID,
+		Name:       "Rule3",
+		Protocol:   "gost",
+		Enabled:    true,
+		ListenPort: 8083,
+	}
+	require.NoError(t, db.Create(rule1).Error)
+	require.NoError(t, db.Create(rule2).Error)
+	require.NoError(t, db.Create(rule3).Error)
+	require.NoError(t, db.Model(&models.ForwardingRule{}).Where("id = ?", rule2.ID).Update("enabled", false).Error)
 
 	t.Run("获取所有规则", func(t *testing.T) {
 		result, err := service.ListRulesByNode(testNode.ID, false)

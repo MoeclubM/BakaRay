@@ -96,10 +96,17 @@ func (s *NodeService) GetNodeByID(id uint) (*models.Node, error) {
 // UpdateNodeStatus 更新节点状态
 func (s *NodeService) UpdateNodeStatus(id uint, status string) error {
 	now := time.Now()
-	return s.db.Model(&models.Node{}).Where("id = ?", id).Updates(map[string]interface{}{
+	result := s.db.Model(&models.Node{}).Where("id = ?", id).Updates(map[string]interface{}{
 		"status":    status,
 		"last_seen": &now,
-	}).Error
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNodeNotFound
+	}
+	return nil
 }
 
 // ListNodes 获取节点列表（所有节点，管理员用）
@@ -339,7 +346,14 @@ func (s *NodeService) ListRulesByNode(nodeID uint, enabledOnly bool) ([]models.F
 
 // DeleteNode 删除节点
 func (s *NodeService) DeleteNode(id uint) error {
-	return s.db.Delete(&models.Node{}, id).Error
+	result := s.db.Delete(&models.Node{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNodeNotFound
+	}
+	return nil
 }
 
 // UpdateNode 更新节点
@@ -382,5 +396,12 @@ func (s *NodeService) UpdateNode(id uint, updates map[string]interface{}) error 
 		}
 	}
 
-	return s.db.Model(&models.Node{}).Where("id = ?", id).Updates(updates).Error
+	result := s.db.Model(&models.Node{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return ErrNodeNotFound
+	}
+	return nil
 }

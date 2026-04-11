@@ -205,14 +205,40 @@ func (s *PaymentService) UpdateOrderStatus(tradeNo string, status string) error 
 
 // CompleteOrder 完成订单（支付成功）
 func (s *PaymentService) CompleteOrder(tradeNo string, userID uint, traffic int64) error {
+	_ = traffic
 	return s.db.Transaction(func(tx *gorm.DB) error {
+		var order models.Order
+		if err := tx.Where("trade_no = ?", tradeNo).First(&order).Error; err != nil {
+			return err
+		}
+
+		if order.PackageID == 0 {
+			if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
+				return err
+			}
+			return tx.Model(&models.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance + ?", order.Amount)).Error
+		}
+
+		var pkg models.Package
+		if err := tx.First(&pkg, order.PackageID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrPackageNotFound
+			}
+			return err
+		}
+
 		// 更新订单状态
 		if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
 			return err
 		}
 		// 更新用户流量
-		if traffic > 0 {
-			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("traffic_balance", gorm.Expr("traffic_balance + ?", traffic)).Error; err != nil {
+		if pkg.Traffic > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("traffic_balance", gorm.Expr("traffic_balance + ?", pkg.Traffic)).Error; err != nil {
+				return err
+			}
+		}
+		if pkg.UserGroupID > 0 {
+			if err := tx.Model(&models.User{}).Where("id = ?", userID).Update("user_group_id", pkg.UserGroupID).Error; err != nil {
 				return err
 			}
 		}
@@ -222,6 +248,7 @@ func (s *PaymentService) CompleteOrder(tradeNo string, userID uint, traffic int6
 
 // CompleteOrderWithLock 幂等性完成订单（带分布式锁）
 func (s *PaymentService) CompleteOrderWithLock(tradeNo string, userID uint, traffic int64) error {
+	_ = traffic
 	// 如果没有 Redis，使用普通方法
 	if s.redis == nil {
 		return s.CompleteOrder(tradeNo, userID, traffic)
@@ -253,14 +280,23 @@ func (s *PaymentService) CompleteOrderWithLock(tradeNo string, userID uint, traf
 		return nil
 	}
 
-	// 获取套餐信息
-	pkg, err := s.GetPackageByID(order.PackageID)
-	if err != nil {
-		return err
-	}
-
 	// 在事务中完成订单
 	return s.db.Transaction(func(tx *gorm.DB) error {
+		if order.PackageID == 0 {
+			if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
+				return err
+			}
+			return tx.Model(&models.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance + ?", order.Amount)).Error
+		}
+
+		var pkg models.Package
+		if err := tx.First(&pkg, order.PackageID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrPackageNotFound
+			}
+			return err
+		}
+
 		// 更新订单状态
 		if err := tx.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", "success").Error; err != nil {
 			return err
@@ -362,8 +398,7 @@ func (s *PaymentConfigService) ListPaymentConfigs() ([]models.PaymentConfig, err
 // GetPaymentConfigByType 根据类型获取支付配置
 func (s *PaymentConfigService) GetPaymentConfigByType(payType string) (*models.PaymentConfig, error) {
 	var cfg models.PaymentConfig
-	// 使用ID或名称查找
-	if err := s.db.Where("id = ? OR name = ?", payType, payType).First(&cfg).Error; err != nil {
+	if err := s.db.Where("enabled = ? AND (id = ? OR name = ? OR pay_type = ?)", true, payType, payType, payType).First(&cfg).Error; err != nil {
 		return nil, err
 	}
 	return &cfg, nil

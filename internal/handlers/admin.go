@@ -570,44 +570,10 @@ func (h *AdminHandler) CreateNode(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	log := logger.WithContext(requestID, userID, "admin")
 
-	var req CreateNodeRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("CreateNode: invalid request", "error", err, "request_id", requestID)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
-		return
-	}
-
-	log.Debug("CreateNode request", "name", req.Name, "host", req.Host, "port", req.Port)
-
-	multiplier := req.Multiplier
-	if multiplier <= 0 {
-		multiplier = 1
-	}
-
-	node, err := h.nodeService.CreateNode(
-		req.Name,
-		req.Host,
-		req.Port,
-		req.Secret,
-		req.NodeGroupID,
-		req.Protocols,
-		multiplier,
-		req.Region,
-	)
-	if err != nil {
-		logger.Error("CreateNode: failed to create node", err, "name", req.Name, "request_id", requestID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建节点失败"})
-		return
-	}
-
-	log.Info("CreateNode success", "node_id", node.ID, "name", req.Name)
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "创建成功",
-		"data": gin.H{
-			"id": node.ID,
-		},
+	log.Warn("CreateNode: manual creation disabled", "request_id", requestID, "user_id", userID)
+	c.JSON(http.StatusBadRequest, gin.H{
+		"code":    400,
+		"message": "节点仅支持安装脚本自动注册，不支持手动添加",
 	})
 }
 

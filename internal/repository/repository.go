@@ -9,9 +9,9 @@ import (
 
 	"bakaray/internal/config"
 	"bakaray/internal/models"
+	"github.com/glebarez/sqlite"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/mysql"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -99,14 +99,16 @@ func AutoMigrate(db *gorm.DB) error {
 
 // addMissingColumns 确保数据库有新添加的列
 func addMissingColumns(db *gorm.DB) error {
-	// 为 Package 表添加 visible 和 renewable 列
 	columns := []struct {
+		Table   string
 		Name    string
 		Type    string
 		Default string
 	}{
-		{"visible", "BOOLEAN", "1"},
-		{"renewable", "BOOLEAN", "0"},
+		{"packages", "visible", "BOOLEAN", "1"},
+		{"packages", "renewable", "BOOLEAN", "0"},
+		{"users", "traffic_balance", "BIGINT", "0"},
+		{"payment_configs", "pay_type", "VARCHAR(32)", "''"},
 	}
 
 	// 检测数据库类型
@@ -119,13 +121,13 @@ func addMissingColumns(db *gorm.DB) error {
 		if isMySQL {
 			// MySQL: 使用 information_schema 检查列是否存在
 			var count int64
-			query := fmt.Sprintf("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'packages' AND column_name = '%s'", col.Name)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '%s' AND column_name = '%s'", col.Table, col.Name)
 			err = db.Raw(query).Scan(&count).Error
 			exists = count > 0
 		} else {
 			// SQLite: 使用 PRAGMA table_info
 			var count int64
-			query := fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('packages') WHERE name='%s'", col.Name)
+			query := fmt.Sprintf("SELECT COUNT(*) FROM pragma_table_info('%s') WHERE name='%s'", col.Table, col.Name)
 			err = db.Raw(query).Scan(&count).Error
 			exists = count > 0
 		}
@@ -137,14 +139,14 @@ func addMissingColumns(db *gorm.DB) error {
 		if !exists {
 			if isMySQL {
 				// MySQL: 使用 ALTER TABLE ADD COLUMN
-				addQuery := fmt.Sprintf("ALTER TABLE packages ADD COLUMN %s %s DEFAULT %s", col.Name, col.Type, col.Default)
+				addQuery := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s DEFAULT %s", col.Table, col.Name, col.Type, col.Default)
 				if err := db.Exec(addQuery).Error; err != nil {
 					// 忽略错误（列可能已存在）
 					continue
 				}
 			} else {
 				// SQLite: 使用 ALTER TABLE ADD COLUMN
-				addQuery := fmt.Sprintf("ALTER TABLE packages ADD COLUMN %s %s DEFAULT %s", col.Name, col.Type, col.Default)
+				addQuery := fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s DEFAULT %s", col.Table, col.Name, col.Type, col.Default)
 				if err := db.Exec(addQuery).Error; err != nil {
 					// 忽略错误（列可能已存在）
 					continue

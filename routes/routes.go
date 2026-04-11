@@ -124,7 +124,6 @@ func Setup(
 			adminNodes := admin.Group("/nodes")
 			{
 				adminNodes.GET("", adminHandler.GetAdminNodes)
-				adminNodes.POST("", adminHandler.CreateNode)
 				adminNodes.GET("/:id", adminHandler.GetAdminNodeDetail)
 				adminNodes.PUT("/:id", adminHandler.UpdateNode)
 				adminNodes.DELETE("/:id", adminHandler.DeleteNode)

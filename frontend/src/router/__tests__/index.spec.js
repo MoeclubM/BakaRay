@@ -53,10 +53,10 @@ describe('router', () => {
     expect(routeNames).toContain('Register')
     expect(routeNames).toContain('Dashboard')
     expect(routeNames).toContain('Rules')
+    expect(routeNames).toContain('Profile')
     expect(routeNames).toContain('AdminLogin')
     expect(routeNames).toContain('AdminNodes')
     expect(routeNames).toContain('NotFound')
-    expect(routeNames).not.toContain('Profile')
   })
 
   it('marks auth and admin meta correctly', async () => {
@@ -73,11 +73,11 @@ describe('router', () => {
     expect(adminNodesRoute).toBeDefined()
   })
 
-  it('keeps /rules available and sends /profile to not found', async () => {
+  it('keeps /rules and /profile available', async () => {
     const router = await loadRouter()
 
     expect(router.resolve('/rules').name).toBe('Rules')
-    expect(router.resolve('/profile').name).toBe('NotFound')
+    expect(router.resolve('/profile').name).toBe('Profile')
   })
 
   it('redirects unauthenticated frontend access to login', async () => {

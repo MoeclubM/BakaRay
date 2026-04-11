@@ -48,6 +48,11 @@ const routes = [
         path: 'deposit',
         name: 'Deposit',
         component: () => import('@/views/DepositView.vue')
+      },
+      {
+        path: 'profile',
+        name: 'Profile',
+        component: () => import('@/views/ProfileView.vue')
       }
     ]
   },

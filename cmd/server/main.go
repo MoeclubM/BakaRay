@@ -101,7 +101,7 @@ func main() {
 
 	frontendRoutes := []string{
 		"/login", "/register", "/dashboard", "/nodes", "/rules",
-		"/packages", "/orders", "/deposit/callback",
+		"/packages", "/orders", "/profile", "/deposit/callback",
 		"/admin", "/admin/dashboard", "/admin/nodes", "/admin/users",
 		"/admin/packages", "/admin/orders",
 		"/admin/user-groups", "/admin/payments", "/admin/settings",

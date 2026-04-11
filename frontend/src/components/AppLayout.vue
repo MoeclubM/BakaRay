@@ -27,6 +27,8 @@
         <v-list>
           <v-list-item prepend-icon="mdi-account" :title="user?.username" />
           <v-divider />
+          <v-list-item prepend-icon="mdi-account-circle" title="个人中心" to="/profile" />
+          <v-divider />
           <v-list-item prepend-icon="mdi-logout" title="退出登录" @click="logout" />
         </v-list>
       </v-menu>

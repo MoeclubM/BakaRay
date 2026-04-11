@@ -25,8 +25,6 @@ services:
       - SERVER_MODE=${SERVER_MODE:-release}
       # JWT 配置
       - JWT_SECRET=${JWT_SECRET:-change-this-secret-in-production}
-      # 节点配置
-      - NODE_SECRET=${NODE_SECRET:-change-this-secret-in-production}
       - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
       - INIT_USERNAME=${INIT_USERNAME:-admin}
       - INIT_PASSWORD=${INIT_PASSWORD:-admin123}

@@ -181,9 +181,6 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("SITE_DOMAIN"); v != "" {
 		cfg.Site.Domain = v
 	}
-	if v := os.Getenv("NODE_SECRET"); v != "" {
-		cfg.Site.NodeSecret = v
-	}
 	if v := os.Getenv("NODE_REPORT_INTERVAL"); v != "" {
 		if interval, err := strconv.Atoi(v); err == nil {
 			cfg.Site.NodeReportInterval = interval

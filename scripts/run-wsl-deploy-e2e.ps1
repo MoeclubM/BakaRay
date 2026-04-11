@@ -154,17 +154,11 @@ function Stop-WslRuntimeProcesses {
     )
 
     $commands = @(
-        "ss -ltnp '( sport = :19081 or sport = :29081 or sport = :18081 or sport = :28081 or sport = :18080 or sport = :28080 )' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u | xargs -r kill -9 2>/dev/null || true",
+        "ss -ltnp '( sport = :19081 or sport = :18081 or sport = :18080 )' 2>/dev/null | grep -o 'pid=[0-9]*' | cut -d= -f2 | sort -u | xargs -r kill -9 2>/dev/null || true",
         "pkill -f '$RuntimeWsl/node-current -c $RuntimeWsl/node1.yaml' || true",
-        "pkill -f '$RuntimeWsl/node-current -c $RuntimeWsl/node2.yaml' || true",
         "pkill -f 'python3 -m http.server 19081 --bind 0.0.0.0 --directory $RuntimeWsl/target1' || true",
-        "pkill -f 'python3 -m http.server 29081 --bind 0.0.0.0 --directory $RuntimeWsl/target2' || true",
         "pkill -x gost || true"
     )
-
-    if ($WslIp) {
-        $commands += "iptables -t nat -D PREROUTING -p tcp --dport 28080 -m comment --comment bakaray:2 -m conntrack --ctstate NEW -j DNAT --to-destination ${WslIp}:29081 2>/dev/null || true"
-    }
 
     [void](Invoke-WslBestEffort ($commands -join "; "))
 }
@@ -198,12 +192,8 @@ function Show-FailureContext {
 
     Show-LogFile -Path (Join-Path $RuntimeWin 'target1.out') -Title 'target1.out'
     Show-LogFile -Path (Join-Path $RuntimeWin 'target1.err') -Title 'target1.err'
-    Show-LogFile -Path (Join-Path $RuntimeWin 'target2.out') -Title 'target2.out'
-    Show-LogFile -Path (Join-Path $RuntimeWin 'target2.err') -Title 'target2.err'
     Show-LogFile -Path (Join-Path $RuntimeWin 'node1.out') -Title 'node1.out'
     Show-LogFile -Path (Join-Path $RuntimeWin 'node1.err') -Title 'node1.err'
-    Show-LogFile -Path (Join-Path $RuntimeWin 'node2.out') -Title 'node2.out'
-    Show-LogFile -Path (Join-Path $RuntimeWin 'node2.err') -Title 'node2.err'
 
     Write-Host ""
     Write-Host "----- docker ps -----"
@@ -285,13 +275,10 @@ if (-not $wslIp) {
 
 try {
     Write-Step "Preparing runtime files"
-    New-Item -ItemType Directory -Force -Path $runtimeWin, (Join-Path $runtimeWin 'target1'), (Join-Path $runtimeWin 'target2') | Out-Null
+    New-Item -ItemType Directory -Force -Path $runtimeWin, (Join-Path $runtimeWin 'target1') | Out-Null
     @'
 backend-node-1
 '@ | Set-Content -Path (Join-Path $runtimeWin 'target1\index.html') -NoNewline
-    @'
-backend-node-2
-'@ | Set-Content -Path (Join-Path $runtimeWin 'target2\index.html') -NoNewline
     @'
 panel:
   url: "http://127.0.0.1:8500"
@@ -307,42 +294,21 @@ logger:
   level: "info"
   output: "stdout"
 '@ | Set-Content -Path (Join-Path $runtimeWin 'node1.yaml') -NoNewline
-    @'
-panel:
-  url: "http://127.0.0.1:8500"
-  node_id: 2
-  secret: "test-node-secret-change-in-production"
-node:
-  http_port: 28081
-  report_interval: 5
-  probe_interval: 5
-  listen_ports:
-    - 28080
-logger:
-  level: "info"
-  output: "stdout"
-'@ | Set-Content -Path (Join-Path $runtimeWin 'node2.yaml') -NoNewline
 
     $runtimeLogTarget1Out = Join-Path $runtimeWin 'target1.out'
     $runtimeLogTarget1Err = Join-Path $runtimeWin 'target1.err'
-    $runtimeLogTarget2Out = Join-Path $runtimeWin 'target2.out'
-    $runtimeLogTarget2Err = Join-Path $runtimeWin 'target2.err'
     $runtimeLogNode1Out = Join-Path $runtimeWin 'node1.out'
     $runtimeLogNode1Err = Join-Path $runtimeWin 'node1.err'
-    $runtimeLogNode2Out = Join-Path $runtimeWin 'node2.out'
-    $runtimeLogNode2Err = Join-Path $runtimeWin 'node2.err'
 
-    Remove-Item $runtimeLogTarget1Out, $runtimeLogTarget1Err, $runtimeLogTarget2Out, $runtimeLogTarget2Err, $runtimeLogNode1Out, $runtimeLogNode1Err, $runtimeLogNode2Out, $runtimeLogNode2Err -ErrorAction SilentlyContinue
+    Remove-Item $runtimeLogTarget1Out, $runtimeLogTarget1Err, $runtimeLogNode1Out, $runtimeLogNode1Err -ErrorAction SilentlyContinue
 
     Write-Step "Cleaning previous runtime"
     Stop-WslBackgroundProcesses @(
         'python3 -m http.server 19081',
-        'python3 -m http.server 29081',
-        "$runtimeWsl/node-current -c $runtimeWsl/node1.yaml",
-        "$runtimeWsl/node-current -c $runtimeWsl/node2.yaml"
+        "$runtimeWsl/node-current -c $runtimeWsl/node1.yaml"
     )
     Stop-WslRuntimeProcesses -RuntimeWsl $runtimeWsl -WslIp $wslIp
-    Invoke-WslRoot "rm -rf /tmp/gost && mkdir -p /tmp/gost; mkdir -p '$runtimeWsl/target1' '$runtimeWsl/target2'"
+    Invoke-WslRoot "rm -rf /tmp/gost && mkdir -p /tmp/gost; mkdir -p '$runtimeWsl/target1'"
     Invoke-WslRoot "cd '$panelRepoWsl' && docker compose -f docker-compose.panel.yml down -v --remove-orphans || true"
 
     Write-Step "Ensuring gost v3 binary is present"
@@ -360,15 +326,11 @@ logger:
 
     Write-Step "Starting WSL targets and nodes"
     $backgroundProcesses.Add((Start-WslBackgroundProcess -Arguments @('-u', 'root', '--', 'python3', '-m', 'http.server', '19081', '--bind', '0.0.0.0', '--directory', "$runtimeWsl/target1") -StdoutPath $runtimeLogTarget1Out -StderrPath $runtimeLogTarget1Err))
-    $backgroundProcesses.Add((Start-WslBackgroundProcess -Arguments @('-u', 'root', '--', 'python3', '-m', 'http.server', '29081', '--bind', '0.0.0.0', '--directory', "$runtimeWsl/target2") -StdoutPath $runtimeLogTarget2Out -StderrPath $runtimeLogTarget2Err))
     $backgroundProcesses.Add((Start-WslBackgroundProcess -Arguments @('-u', 'root', '--', 'env', 'GOST_PATH=/tmp/gostv3/gost', "$runtimeWsl/node-current", '-c', "$runtimeWsl/node1.yaml") -StdoutPath $runtimeLogNode1Out -StderrPath $runtimeLogNode1Err))
-    $backgroundProcesses.Add((Start-WslBackgroundProcess -Arguments @('-u', 'root', '--', 'env', 'GOST_PATH=/tmp/gostv3/gost', "$runtimeWsl/node-current", '-c', "$runtimeWsl/node2.yaml") -StdoutPath $runtimeLogNode2Out -StderrPath $runtimeLogNode2Err))
 
     Write-Step "Waiting for target and node health endpoints"
     Wait-WslHttp -Url 'http://127.0.0.1:19081'
-    Wait-WslHttp -Url 'http://127.0.0.1:29081'
     Wait-WslHttp -Url 'http://127.0.0.1:18081/health'
-    Wait-WslHttp -Url 'http://127.0.0.1:28081/health'
 
     Write-Step "Running Playwright deploy E2E"
     $env:WSL_HOST_IP = $wslIp
@@ -397,9 +359,7 @@ logger:
         Stop-WindowsBackgroundProcesses -Processes $backgroundProcesses.ToArray()
         Stop-WslBackgroundProcesses @(
             'python3 -m http.server 19081',
-            'python3 -m http.server 29081',
-            "$runtimeWsl/node-current -c $runtimeWsl/node1.yaml",
-            "$runtimeWsl/node-current -c $runtimeWsl/node2.yaml"
+            "$runtimeWsl/node-current -c $runtimeWsl/node1.yaml"
         )
         Stop-WslRuntimeProcesses -RuntimeWsl $runtimeWsl -WslIp $wslIp
         if ($panelStackStarted) {

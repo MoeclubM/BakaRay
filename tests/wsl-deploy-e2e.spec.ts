@@ -8,11 +8,8 @@ const adminPassword = process.env.BAKARAY_ADMIN_PASS || 'admin123'
 const nodeSecret = process.env.BAKARAY_NODE_SECRET || 'e2e-node-secret'
 
 const gostAdminPort = Number(process.env.BAKARAY_GOST_NODE_ADMIN_PORT || '18081')
-const iptAdminPort = Number(process.env.BAKARAY_IPT_NODE_ADMIN_PORT || '28081')
 const gostListenPort = Number(process.env.BAKARAY_GOST_LISTEN_PORT || '18080')
-const iptListenPort = Number(process.env.BAKARAY_IPT_LISTEN_PORT || '28080')
 const gostTargetPort = Number(process.env.BAKARAY_GOST_TARGET_PORT || '19081')
-const iptTargetPort = Number(process.env.BAKARAY_IPT_TARGET_PORT || '29081')
 
 type NodeSummary = {
   id: number
@@ -161,17 +158,15 @@ async function bestEffortDelete(api: APIRequestContext | undefined, path: string
   }
 }
 
-test('WSL zero-deploy panel + two native nodes forwarding E2E', async ({ browser, page, request }) => {
+test('WSL zero-deploy panel + native node forwarding E2E', async ({ browser, page, request }) => {
   test.setTimeout(5 * 60 * 1000)
 
   const suffix = Date.now().toString().slice(-8)
   const gostNodeName = `wsl-gost-${suffix}`
-  const iptNodeName = `wsl-iptables-${suffix}`
   const gostRuleName = `gost-${suffix}`
-  const iptRuleName = `iptables-${suffix}`
   const username = `e2e_${suffix}`
   const password = 'e2e_pass123'
-  const nodeNames = [gostNodeName, iptNodeName]
+  const nodeNames = [gostNodeName]
   const createdNodeIds: number[] = []
   const createdRuleIds: number[] = []
   let adminAPI: APIRequestContext | undefined
@@ -184,9 +179,6 @@ test('WSL zero-deploy panel + two native nodes forwarding E2E', async ({ browser
 
     adminAPI = await buildAuthApi(page)
     createdNodeIds.push(await createNodeViaUI(page, gostNodeName, wslHostIP, gostAdminPort))
-    await waitForNodePresence(adminAPI, [gostNodeName])
-
-    createdNodeIds.push(await createNodeViaUI(page, iptNodeName, wslHostIP, iptAdminPort))
     await waitForNodePresence(adminAPI, nodeNames)
     await waitForNodesOnline(adminAPI, nodeNames)
 
@@ -215,24 +207,10 @@ test('WSL zero-deploy panel + two native nodes forwarding E2E', async ({ browser
       targetPort: gostTargetPort
     }))
 
-    createdRuleIds.push(await createRuleViaUI(userPage, {
-      name: iptRuleName,
-      protocolTitle: '内核转发 (iptables)',
-      nodeName: iptNodeName,
-      listenPort: iptListenPort,
-      targetHost: wslHostIP,
-      targetPort: iptTargetPort
-    }))
-
     await expect.poll(async () => fetchBody(request, `http://${wslHostIP}:${gostListenPort}`), {
       timeout: 90_000,
       intervals: [2_000, 3_000, 5_000]
     }).toContain('backend-node-1')
-
-    await expect.poll(async () => fetchBody(request, `http://${wslHostIP}:${iptListenPort}`), {
-      timeout: 90_000,
-      intervals: [2_000, 3_000, 5_000]
-    }).toContain('backend-node-2')
   } finally {
     for (const ruleId of [...createdRuleIds].reverse()) {
       await bestEffortDelete(userAPI, `rules/${ruleId}`, `rule ${ruleId}`)

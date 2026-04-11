@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// StringSlice stores a JSON array (e.g. ["gost","iptables"]) in the database and
+// StringSlice stores a JSON array (e.g. ["gost"]) in the database and
 // marshals to/from JSON as []string.
 type StringSlice []string
 
@@ -52,4 +52,3 @@ func (s StringSlice) Value() (driver.Value, error) {
 	}
 	return string(b), nil
 }
-

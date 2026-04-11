@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `nodes` (
     `secret` VARCHAR(128) NOT NULL COMMENT '通信密钥',
     `status` VARCHAR(20) NOT NULL DEFAULT 'offline' COMMENT 'online/offline',
     `node_group_id` BIGINT UNSIGNED DEFAULT 0,
-    `protocols` VARCHAR(255) DEFAULT 'gost,iptables' COMMENT '支持的协议',
+    `protocols` VARCHAR(255) DEFAULT 'gost' COMMENT '支持的协议',
     `multiplier` DECIMAL(10,2) NOT NULL DEFAULT 1.00 COMMENT '倍率',
     `region` VARCHAR(64) DEFAULT '' COMMENT '节点地区',
     `last_seen` DATETIME DEFAULT NULL,
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `forwarding_rules` (
     `node_id` BIGINT UNSIGNED NOT NULL,
     `user_id` BIGINT UNSIGNED NOT NULL,
     `name` VARCHAR(128) NOT NULL,
-    `protocol` VARCHAR(20) NOT NULL COMMENT 'gost/iptables',
+    `protocol` VARCHAR(20) NOT NULL COMMENT 'gost',
     `enabled` TINYINT(1) NOT NULL DEFAULT 1,
     `traffic_used` BIGINT NOT NULL DEFAULT 0 COMMENT '已用流量（字节）',
     `traffic_limit` BIGINT NOT NULL DEFAULT 0 COMMENT '流量限制（字节）',
@@ -107,18 +107,6 @@ CREATE TABLE IF NOT EXISTS `gost_rules` (
     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_rule` (`rule_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='gost协议配置表';
-
--- iptables 协议专用配置表
-CREATE TABLE IF NOT EXISTS `iptables_rules` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `rule_id` BIGINT UNSIGNED NOT NULL UNIQUE,
-    `proto` VARCHAR(10) DEFAULT 'tcp',
-    `snat` TINYINT(1) DEFAULT 0,
-    `iface` VARCHAR(64) DEFAULT '' COMMENT '网络接口',
-    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX `idx_rule` (`rule_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='iptables协议配置表';
 
 -- 套餐表
 CREATE TABLE IF NOT EXISTS `packages` (

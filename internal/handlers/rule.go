@@ -55,17 +55,16 @@ func (h *RuleHandler) GetRules(c *gin.Context) {
 
 // CreateRuleRequest 创建规则请求
 type CreateRuleRequest struct {
-	Name           string          `json:"name" binding:"required"`
-	NodeID         uint            `json:"node_id" binding:"required"`
-	Protocol       string          `json:"protocol" binding:"required"`
-	ListenPort     int             `json:"listen_port" binding:"required"`
-	Enabled        *bool           `json:"enabled"`
-	TrafficLimit   *int64          `json:"traffic_limit"`
-	SpeedLimit     *int64          `json:"speed_limit"`
-	Mode           string          `json:"mode"`
-	Targets        []TargetRequest `json:"targets" binding:"required,min=1"`
-	GostConfig     *GostConfig     `json:"gost_config"`
-	IPTablesConfig *IPTablesConfig `json:"iptables_config"`
+	Name         string          `json:"name" binding:"required"`
+	NodeID       uint            `json:"node_id" binding:"required"`
+	Protocol     string          `json:"protocol" binding:"required"`
+	ListenPort   int             `json:"listen_port" binding:"required"`
+	Enabled      *bool           `json:"enabled"`
+	TrafficLimit *int64          `json:"traffic_limit"`
+	SpeedLimit   *int64          `json:"speed_limit"`
+	Mode         string          `json:"mode"`
+	Targets      []TargetRequest `json:"targets" binding:"required,min=1"`
+	GostConfig   *GostConfig     `json:"gost_config"`
 }
 
 // TargetRequest 目标请求
@@ -84,23 +83,15 @@ type GostConfig struct {
 	Timeout   int    `json:"timeout"`
 }
 
-// IPTablesConfig iptables 配置
-type IPTablesConfig struct {
-	Proto string `json:"proto"`
-	SNAT  bool   `json:"snat"`
-	Iface string `json:"iface"`
-}
-
 type normalizedRuleSpec struct {
-	Protocol       string
-	ListenPort     int
-	Enabled        bool
-	TrafficLimit   int64
-	SpeedLimit     int64
-	Mode           string
-	Targets        []TargetRequest
-	GostConfig     *GostConfig
-	IPTablesConfig *IPTablesConfig
+	Protocol     string
+	ListenPort   int
+	Enabled      bool
+	TrafficLimit int64
+	SpeedLimit   int64
+	Mode         string
+	Targets      []TargetRequest
+	GostConfig   *GostConfig
 }
 
 type existingRuleConflict struct {
@@ -139,7 +130,7 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 
 	enabledValue, trafficLimitValue, speedLimitValue := resolveRuleStateValues(req.Enabled, req.TrafficLimit, req.SpeedLimit, true, 0, 0)
 
-	spec, err := normalizeAndValidateRuleSpec(node, req.Protocol, req.ListenPort, enabledValue, trafficLimitValue, speedLimitValue, req.Mode, req.Targets, req.GostConfig, req.IPTablesConfig, conflicts, 0)
+	spec, err := normalizeAndValidateRuleSpec(node, req.Protocol, req.ListenPort, enabledValue, trafficLimitValue, speedLimitValue, req.Mode, req.Targets, req.GostConfig, conflicts, 0)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": err.Error()})
 		return
@@ -175,25 +166,14 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 		h.ruleService.AddTarget(target)
 	}
 
-	switch spec.Protocol {
-	case "gost":
-		gostRule := &models.GostRule{
-			RuleID:    rule.ID,
-			Transport: spec.GostConfig.Transport,
-			TLS:       spec.GostConfig.TLS,
-			Chain:     spec.GostConfig.Chain,
-			Timeout:   spec.GostConfig.Timeout,
-		}
-		_ = h.ruleService.CreateGostRule(gostRule)
-	case "iptables":
-		iptRule := &models.IPTablesRule{
-			RuleID: rule.ID,
-			Proto:  spec.IPTablesConfig.Proto,
-			SNAT:   spec.IPTablesConfig.SNAT,
-			Iface:  spec.IPTablesConfig.Iface,
-		}
-		_ = h.ruleService.CreateIPTablesRule(iptRule)
+	gostRule := &models.GostRule{
+		RuleID:    rule.ID,
+		Transport: spec.GostConfig.Transport,
+		TLS:       spec.GostConfig.TLS,
+		Chain:     spec.GostConfig.Chain,
+		Timeout:   spec.GostConfig.Timeout,
 	}
+	_ = h.ruleService.CreateGostRule(gostRule)
 
 	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID)
 
@@ -231,13 +211,8 @@ func (h *RuleHandler) GetRule(c *gin.Context) {
 	targets, _ := h.ruleService.ListTargets(rule.ID, false)
 
 	var gostRule *models.GostRule
-	var iptRule *models.IPTablesRule
-
-	switch rule.Protocol {
-	case "gost":
+	if rule.Protocol == "gost" {
 		gostRule, _ = h.ruleService.GetGostRule(rule.ID)
-	case "iptables":
-		iptRule, _ = h.ruleService.GetIPTablesRule(rule.ID)
 	}
 
 	log.Info("GetRule success", "rule_id", id, "rule_name", rule.Name)
@@ -245,10 +220,9 @@ func (h *RuleHandler) GetRule(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"rule":            rule,
-			"targets":         targets,
-			"gost_config":     gostRule,
-			"iptables_config": iptRule,
+			"rule":        rule,
+			"targets":     targets,
+			"gost_config": gostRule,
 		},
 	})
 }
@@ -279,8 +253,6 @@ func (h *RuleHandler) DeleteRule(c *gin.Context) {
 	}
 	_ = h.ruleService.DeleteTargetsByRuleID(uint(id))
 	_ = h.ruleService.DeleteGostRule(uint(id))
-	_ = h.ruleService.DeleteIPTablesRule(uint(id))
-
 	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID)
 
 	log.Info("DeleteRule success", "rule_id", id)
@@ -293,17 +265,16 @@ func (h *RuleHandler) DeleteRule(c *gin.Context) {
 
 // UpdateRuleRequest 更新规则请求
 type UpdateRuleRequest struct {
-	Name           string          `json:"name"`
-	Enabled        *bool           `json:"enabled"`
-	NodeID         *uint           `json:"node_id"`
-	Protocol       string          `json:"protocol"`
-	ListenPort     *int            `json:"listen_port"`
-	TrafficLimit   *int64          `json:"traffic_limit"`
-	SpeedLimit     *int64          `json:"speed_limit"`
-	Mode           string          `json:"mode"`
-	Targets        []TargetRequest `json:"targets"`
-	GostConfig     *GostConfig     `json:"gost_config"`
-	IPTablesConfig *IPTablesConfig `json:"iptables_config"`
+	Name         string          `json:"name"`
+	Enabled      *bool           `json:"enabled"`
+	NodeID       *uint           `json:"node_id"`
+	Protocol     string          `json:"protocol"`
+	ListenPort   *int            `json:"listen_port"`
+	TrafficLimit *int64          `json:"traffic_limit"`
+	SpeedLimit   *int64          `json:"speed_limit"`
+	Mode         string          `json:"mode"`
+	Targets      []TargetRequest `json:"targets"`
+	GostConfig   *GostConfig     `json:"gost_config"`
 }
 
 // UpdateRule 更新规则
@@ -337,7 +308,6 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 
 	targets, _ := h.ruleService.ListTargets(rule.ID, false)
 	existingGost, _ := h.ruleService.GetGostRule(rule.ID)
-	existingIPT, _ := h.ruleService.GetIPTablesRule(rule.ID)
 
 	nodeID := rule.NodeID
 	if req.NodeID != nil && *req.NodeID > 0 {
@@ -367,7 +337,6 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 		coalesceString(req.Mode, rule.Mode),
 		coalesceTargets(req.Targets, targets),
 		coalesceGostConfig(req.GostConfig, existingGost),
-		coalesceIPTablesConfig(req.IPTablesConfig, existingIPT),
 		conflicts,
 		rule.ID,
 	)
@@ -406,33 +375,16 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 		_ = h.ruleService.AddTarget(target)
 	}
 
-	if spec.Protocol == "gost" {
-		cfgUpdates := map[string]interface{}{
-			"transport": spec.GostConfig.Transport,
-			"tls":       spec.GostConfig.TLS,
-			"chain":     spec.GostConfig.Chain,
-			"timeout":   spec.GostConfig.Timeout,
-		}
-		if err := h.ruleService.UpsertGostRule(uint(id), cfgUpdates); err != nil {
-			logger.Error("UpdateRule: upsert gost config failed", err, "rule_id", id, "request_id", requestID)
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新协议配置失败"})
-			return
-		}
-		_ = h.ruleService.DeleteIPTablesRule(uint(id))
+	cfgUpdates := map[string]interface{}{
+		"transport": spec.GostConfig.Transport,
+		"tls":       spec.GostConfig.TLS,
+		"chain":     spec.GostConfig.Chain,
+		"timeout":   spec.GostConfig.Timeout,
 	}
-
-	if spec.Protocol == "iptables" {
-		cfgUpdates := map[string]interface{}{
-			"proto": spec.IPTablesConfig.Proto,
-			"snat":  spec.IPTablesConfig.SNAT,
-			"iface": spec.IPTablesConfig.Iface,
-		}
-		if err := h.ruleService.UpsertIPTablesRule(uint(id), cfgUpdates); err != nil {
-			logger.Error("UpdateRule: upsert iptables config failed", err, "rule_id", id, "request_id", requestID)
-			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新协议配置失败"})
-			return
-		}
-		_ = h.ruleService.DeleteGostRule(uint(id))
+	if err := h.ruleService.UpsertGostRule(uint(id), cfgUpdates); err != nil {
+		logger.Error("UpdateRule: upsert gost config failed", err, "rule_id", id, "request_id", requestID)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新协议配置失败"})
+		return
 	}
 
 	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID, nodeID)
@@ -445,17 +397,16 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 	})
 }
 
-func normalizeAndValidateRuleSpec(node *models.Node, protocol string, listenPort int, enabled bool, trafficLimit int64, speedLimit int64, mode string, targets []TargetRequest, gostConfig *GostConfig, iptablesConfig *IPTablesConfig, existingRules []existingRuleConflict, currentRuleID uint) (*normalizedRuleSpec, error) {
+func normalizeAndValidateRuleSpec(node *models.Node, protocol string, listenPort int, enabled bool, trafficLimit int64, speedLimit int64, mode string, targets []TargetRequest, gostConfig *GostConfig, existingRules []existingRuleConflict, currentRuleID uint) (*normalizedRuleSpec, error) {
 	spec := &normalizedRuleSpec{
-		Protocol:       strings.ToLower(strings.TrimSpace(protocol)),
-		ListenPort:     listenPort,
-		Enabled:        enabled,
-		TrafficLimit:   maxInt64(0, trafficLimit),
-		SpeedLimit:     maxInt64(0, speedLimit),
-		Mode:           strings.ToLower(strings.TrimSpace(mode)),
-		Targets:        sanitizeTargets(targets),
-		GostConfig:     normalizeGostConfig(gostConfig),
-		IPTablesConfig: normalizeIPTablesConfig(iptablesConfig),
+		Protocol:     strings.ToLower(strings.TrimSpace(protocol)),
+		ListenPort:   listenPort,
+		Enabled:      enabled,
+		TrafficLimit: maxInt64(0, trafficLimit),
+		SpeedLimit:   maxInt64(0, speedLimit),
+		Mode:         strings.ToLower(strings.TrimSpace(mode)),
+		Targets:      sanitizeTargets(targets),
+		GostConfig:   normalizeGostConfig(gostConfig),
 	}
 
 	if spec.Mode == "" {
@@ -465,10 +416,8 @@ func normalizeAndValidateRuleSpec(node *models.Node, protocol string, listenPort
 		return nil, fmt.Errorf("监听端口必须在 1-65535 之间")
 	}
 
-	switch spec.Protocol {
-	case "gost", "iptables":
-	default:
-		return nil, fmt.Errorf("仅支持 gost 或 iptables")
+	if spec.Protocol != "gost" {
+		return nil, fmt.Errorf("仅支持 gost")
 	}
 
 	if !services.NodeSupportsProtocol([]string(node.Protocols), spec.Protocol) {
@@ -497,18 +446,14 @@ func normalizeAndValidateRuleSpec(node *models.Node, protocol string, listenPort
 		return nil, fmt.Errorf("%s 模式至少需要两个启用目标", spec.Mode)
 	}
 
-	if spec.Protocol == "gost" {
-		if spec.SpeedLimit > 0 {
-			return nil, fmt.Errorf("gost 规则暂不支持限速")
-		}
-		if spec.GostConfig.TLS || strings.TrimSpace(spec.GostConfig.Chain) != "" {
-			return nil, fmt.Errorf("当前 gost 首版仅支持 TCP/UDP 端口转发")
-		}
-	} else if spec.IPTablesConfig.Proto == "" {
-		spec.IPTablesConfig.Proto = "tcp"
+	if spec.SpeedLimit > 0 {
+		return nil, fmt.Errorf("gost 规则暂不支持限速")
+	}
+	if spec.GostConfig.TLS || strings.TrimSpace(spec.GostConfig.Chain) != "" {
+		return nil, fmt.Errorf("当前 gost 首版仅支持 TCP/UDP 端口转发")
 	}
 
-	layer4 := layer4Protocol(spec.Protocol, spec.GostConfig, spec.IPTablesConfig)
+	layer4 := layer4Protocol(spec.GostConfig)
 	for _, existing := range existingRules {
 		if existing.ID == currentRuleID || !existing.Enabled {
 			continue
@@ -533,26 +478,16 @@ func (h *RuleHandler) loadRuleConflicts(nodeID uint) ([]existingRuleConflict, er
 
 	out := make([]existingRuleConflict, 0, len(rules))
 	for _, rule := range rules {
-		layer4 := "tcp"
-		switch rule.Protocol {
-		case "gost":
-			cfg, err := h.ruleService.GetGostRule(rule.ID)
-			if err != nil {
-				return nil, err
-			}
-			if cfg != nil && strings.EqualFold(strings.TrimSpace(cfg.Transport), "udp") {
-				layer4 = "udp"
-			}
-		case "iptables":
-			cfg, err := h.ruleService.GetIPTablesRule(rule.ID)
-			if err != nil {
-				return nil, err
-			}
-			if cfg != nil && strings.EqualFold(strings.TrimSpace(cfg.Proto), "udp") {
-				layer4 = "udp"
-			}
-		default:
+		if rule.Protocol != "gost" {
 			continue
+		}
+		layer4 := "tcp"
+		cfg, err := h.ruleService.GetGostRule(rule.ID)
+		if err != nil {
+			return nil, err
+		}
+		if cfg != nil && strings.EqualFold(strings.TrimSpace(cfg.Transport), "udp") {
+			layer4 = "udp"
 		}
 
 		out = append(out, existingRuleConflict{
@@ -606,26 +541,7 @@ func normalizeGostConfig(cfg *GostConfig) *GostConfig {
 	return &out
 }
 
-func normalizeIPTablesConfig(cfg *IPTablesConfig) *IPTablesConfig {
-	if cfg == nil {
-		return &IPTablesConfig{Proto: "tcp"}
-	}
-	out := *cfg
-	out.Proto = strings.ToLower(strings.TrimSpace(out.Proto))
-	if out.Proto == "" {
-		out.Proto = "tcp"
-	}
-	if out.Proto != "tcp" && out.Proto != "udp" {
-		out.Proto = "tcp"
-	}
-	out.Iface = strings.TrimSpace(out.Iface)
-	return &out
-}
-
-func layer4Protocol(protocol string, gostConfig *GostConfig, iptablesConfig *IPTablesConfig) string {
-	if protocol == "iptables" {
-		return normalizeIPTablesConfig(iptablesConfig).Proto
-	}
+func layer4Protocol(gostConfig *GostConfig) string {
 	return normalizeGostConfig(gostConfig).Transport
 }
 
@@ -689,20 +605,6 @@ func coalesceGostConfig(incoming *GostConfig, existing *models.GostRule) *GostCo
 		TLS:       existing.TLS,
 		Chain:     existing.Chain,
 		Timeout:   existing.Timeout,
-	}
-}
-
-func coalesceIPTablesConfig(incoming *IPTablesConfig, existing *models.IPTablesRule) *IPTablesConfig {
-	if incoming != nil {
-		return incoming
-	}
-	if existing == nil {
-		return nil
-	}
-	return &IPTablesConfig{
-		Proto: existing.Proto,
-		SNAT:  existing.SNAT,
-		Iface: existing.Iface,
 	}
 }
 

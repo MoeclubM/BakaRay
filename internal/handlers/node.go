@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"bakaray/internal/logger"
@@ -217,26 +218,23 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		Chain     string `json:"chain"`
 		Timeout   int    `json:"timeout"`
 	}
-	type NodeIPTablesConfig struct {
-		Proto string `json:"proto"`
-		SNAT  bool   `json:"snat"`
-		Iface string `json:"iface"`
-	}
 	type NodeRule struct {
-		ID             uint                `json:"id"`
-		Name           string              `json:"name"`
-		Protocol       string              `json:"protocol"`
-		ListenPort     int                 `json:"listen_port"`
-		Mode           string              `json:"mode"`
-		Targets        []NodeTarget        `json:"targets"`
-		SpeedLimit     int64               `json:"speed_limit"`
-		Enabled        bool                `json:"enabled"`
-		GostConfig     *NodeGostConfig     `json:"gost_config,omitempty"`
-		IPTablesConfig *NodeIPTablesConfig `json:"iptables_config,omitempty"`
+		ID         uint            `json:"id"`
+		Name       string          `json:"name"`
+		Protocol   string          `json:"protocol"`
+		ListenPort int             `json:"listen_port"`
+		Mode       string          `json:"mode"`
+		Targets    []NodeTarget    `json:"targets"`
+		SpeedLimit int64           `json:"speed_limit"`
+		Enabled    bool            `json:"enabled"`
+		GostConfig *NodeGostConfig `json:"gost_config,omitempty"`
 	}
 
 	nodeRules := make([]NodeRule, 0, len(rules))
 	for _, r := range rules {
+		if !strings.EqualFold(r.Protocol, "gost") {
+			continue
+		}
 		targets, _ := h.ruleService.ListTargets(r.ID, true)
 		nodeTargets := make([]NodeTarget, 0, len(targets))
 		for _, t := range targets {
@@ -259,25 +257,13 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 			Enabled:    r.Enabled,
 		}
 
-		switch r.Protocol {
-		case "gost":
-			cfg, _ := h.ruleService.GetGostRule(r.ID)
-			if cfg != nil {
-				nr.GostConfig = &NodeGostConfig{
-					Transport: cfg.Transport,
-					TLS:       cfg.TLS,
-					Chain:     cfg.Chain,
-					Timeout:   cfg.Timeout,
-				}
-			}
-		case "iptables":
-			cfg, _ := h.ruleService.GetIPTablesRule(r.ID)
-			if cfg != nil {
-				nr.IPTablesConfig = &NodeIPTablesConfig{
-					Proto: cfg.Proto,
-					SNAT:  cfg.SNAT,
-					Iface: cfg.Iface,
-				}
+		cfg, _ := h.ruleService.GetGostRule(r.ID)
+		if cfg != nil {
+			nr.GostConfig = &NodeGostConfig{
+				Transport: cfg.Transport,
+				TLS:       cfg.TLS,
+				Chain:     cfg.Chain,
+				Timeout:   cfg.Timeout,
 			}
 		}
 

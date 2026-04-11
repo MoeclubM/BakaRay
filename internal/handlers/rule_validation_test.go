@@ -28,30 +28,7 @@ func TestResolveRuleStateValues(t *testing.T) {
 }
 
 func TestNormalizeAndValidateRuleSpec(t *testing.T) {
-	node := &models.Node{Protocols: models.StringSlice{"gost", "iptables"}}
-
-	t.Run("defaults iptables proto to tcp", func(t *testing.T) {
-		spec, err := normalizeAndValidateRuleSpec(
-			node,
-			"iptables",
-			8080,
-			true,
-			0,
-			128,
-			"direct",
-			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			nil,
-			nil,
-			nil,
-			0,
-		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if spec.IPTablesConfig == nil || spec.IPTablesConfig.Proto != "tcp" {
-			t.Fatalf("expected tcp iptables config, got %#v", spec.IPTablesConfig)
-		}
-	})
+	node := &models.Node{Protocols: models.StringSlice{"gost"}}
 
 	t.Run("rejects gost speed limit", func(t *testing.T) {
 		_, err := normalizeAndValidateRuleSpec(
@@ -65,7 +42,6 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
 			&GostConfig{Transport: "tcp"},
 			nil,
-			nil,
 			0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "暂不支持限速") {
@@ -76,15 +52,14 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 	t.Run("rejects rr with less than two enabled targets", func(t *testing.T) {
 		_, err := normalizeAndValidateRuleSpec(
 			node,
-			"iptables",
+			"gost",
 			8082,
 			true,
 			0,
 			0,
 			"rr",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			nil,
-			&IPTablesConfig{Proto: "tcp"},
+			&GostConfig{Transport: "tcp"},
 			nil,
 			0,
 		)
@@ -104,7 +79,6 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 			"direct",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
 			&GostConfig{Transport: "tcp"},
-			nil,
 			[]existingRuleConflict{
 				{ID: 2, ListenPort: 8083, Enabled: true, Layer4: "tcp"},
 			},
@@ -126,7 +100,6 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 			"direct",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
 			&GostConfig{Transport: "tcp"},
-			nil,
 			[]existingRuleConflict{
 				{ID: 2, ListenPort: 8084, Enabled: true, Layer4: "udp"},
 			},
@@ -137,6 +110,25 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 		}
 		if spec.GostConfig == nil || spec.GostConfig.Transport != "tcp" {
 			t.Fatalf("unexpected gost config: %#v", spec.GostConfig)
+		}
+	})
+
+	t.Run("rejects unsupported protocol", func(t *testing.T) {
+		_, err := normalizeAndValidateRuleSpec(
+			node,
+			"legacy",
+			8085,
+			true,
+			0,
+			0,
+			"direct",
+			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
+			nil,
+			nil,
+			0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "仅支持 gost") {
+			t.Fatalf("expected unsupported protocol validation error, got %v", err)
 		}
 	})
 }

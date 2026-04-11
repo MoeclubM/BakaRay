@@ -7,8 +7,7 @@ import (
 )
 
 var supportedNodeProtocols = map[string]struct{}{
-	"gost":     {},
-	"iptables": {},
+	"gost": {},
 }
 
 // NormalizeNodeProtocols keeps only supported node capabilities and applies the
@@ -33,7 +32,7 @@ func NormalizeNodeProtocols(protocols []string) models.StringSlice {
 	}
 
 	if len(out) == 0 {
-		return models.StringSlice{"gost", "iptables"}
+		return models.StringSlice{"gost"}
 	}
 
 	return models.StringSlice(out)

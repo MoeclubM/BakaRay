@@ -24,7 +24,7 @@ func TestCreateNode(t *testing.T) {
 			8080,
 			"secret123",
 			1,
-			[]string{"gost", "iptables"},
+			[]string{"gost"},
 			1.5,
 			"US",
 		)
@@ -252,8 +252,8 @@ func TestSaveProbeData(t *testing.T) {
 			Cores:        4,
 		},
 		Memory: models.MemoryInfo{
-			Total:       8000000000,
-			Used:        4000000000,
+			Total:        8000000000,
+			Used:         4000000000,
 			UsagePercent: 50.0,
 		},
 		Network: []models.NetworkInfo{
@@ -314,8 +314,8 @@ func TestGetProbeData(t *testing.T) {
 				Cores:        8,
 			},
 			Memory: models.MemoryInfo{
-				Total:       16000000000,
-				Used:        8000000000,
+				Total:        16000000000,
+				Used:         8000000000,
 				UsagePercent: 50.0,
 			},
 		}
@@ -466,10 +466,10 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("批量更新节点属性", func(t *testing.T) {
 		err := service.UpdateNode(testNode.ID, map[string]interface{}{
-			"name":        "BatchUpdateNode",
-			"host":        "batch.example.com",
-			"multiplier":  2.5,
-			"region":      "EU",
+			"name":          "BatchUpdateNode",
+			"host":          "batch.example.com",
+			"multiplier":    2.5,
+			"region":        "EU",
 			"node_group_id": 3,
 		})
 
@@ -667,7 +667,7 @@ func TestListRulesByNode(t *testing.T) {
 		{
 			NodeID:     testNode.ID,
 			Name:       "Rule2",
-			Protocol:   "iptables",
+			Protocol:   "gost",
 			Enabled:    false,
 			ListenPort: 8082,
 		},
@@ -721,8 +721,8 @@ func TestProbeDataJSONMarshal(t *testing.T) {
 			Cores:        16,
 		},
 		Memory: models.MemoryInfo{
-			Total:       32000000000,
-			Used:        24000000000,
+			Total:        32000000000,
+			Used:         24000000000,
 			UsagePercent: 75.0,
 		},
 		Network: []models.NetworkInfo{

@@ -73,10 +73,10 @@ func TestCreateRule(t *testing.T) {
 
 	t.Run("默认值设置", func(t *testing.T) {
 		rule := &models.ForwardingRule{
-			NodeID:   1,
-			UserID:   1,
-			Name:     "Default Test Rule",
-			Protocol: "gost",
+			NodeID:     1,
+			UserID:     1,
+			Name:       "Default Test Rule",
+			Protocol:   "gost",
 			ListenPort: 9090,
 		}
 
@@ -85,10 +85,10 @@ func TestCreateRule(t *testing.T) {
 			WithArgs(
 				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 				rule.NodeID, rule.UserID, rule.Name, rule.Protocol,
-				true,  // 默认 enabled = true
-				int64(0),  // 默认 traffic_used = 0
-				int64(0),  // 默认 traffic_limit = 0
-				int64(0),  // 默认 speed_limit = 0
+				true,     // 默认 enabled = true
+				int64(0), // 默认 traffic_used = 0
+				int64(0), // 默认 traffic_limit = 0
+				int64(0), // 默认 speed_limit = 0
 				"direct", // 默认 mode = "direct"
 				rule.ListenPort,
 			).
@@ -225,7 +225,7 @@ func TestListRulesByUser(t *testing.T) {
 	t.Run("获取用户所有规则", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{"id", "node_id", "user_id", "name", "protocol", "enabled", "traffic_used", "traffic_limit", "speed_limit", "mode", "listen_port"}).
 			AddRow(1, 1, 1, "Rule 1", "gost", true, 0, 1024*1024*1024, 0, "direct", 8080).
-			AddRow(2, 1, 1, "Rule 2", "iptables", true, 512, 2048*1024*1024, 0, "rr", 9090)
+			AddRow(2, 1, 1, "Rule 2", "gost", true, 512, 2048*1024*1024, 0, "rr", 9090)
 
 		mock.ExpectQuery("SELECT \\* FROM `forwarding_rules` WHERE user_id = \\?").
 			WithArgs(1).
@@ -490,63 +490,13 @@ func TestGostRule(t *testing.T) {
 	})
 }
 
-func TestIPTablesRule(t *testing.T) {
-	svc, mock := setupTestRuleService(t)
-
-	t.Run("获取iptables规则配置", func(t *testing.T) {
-		rows := sqlmock.NewRows([]string{"id", "rule_id", "proto", "snat", "iface"}).
-			AddRow(1, 1, "tcp", false, "eth0")
-
-		mock.ExpectQuery("SELECT \\* FROM `iptables_rules` WHERE rule_id = \\? ORDER BY `iptables_rules`.`id` LIMIT 1").
-			WithArgs(1).
-			WillReturnRows(rows)
-
-		rule, err := svc.GetIPTablesRule(1)
-		require.NoError(t, err)
-		require.NotNil(t, rule)
-		require.Equal(t, "tcp", rule.Proto)
-		require.False(t, rule.SNAT)
-	})
-
-	t.Run("iptables规则不存在", func(t *testing.T) {
-		mock.ExpectQuery("SELECT \\* FROM `iptables_rules` WHERE rule_id = \\? ORDER BY `iptables_rules`.`id` LIMIT 1").
-			WithArgs(999).
-			WillReturnError(gorm.ErrRecordNotFound)
-
-		rule, err := svc.GetIPTablesRule(999)
-		require.NoError(t, err)
-		require.Nil(t, rule)
-	})
-
-	t.Run("创建iptables规则", func(t *testing.T) {
-		rule := &models.IPTablesRule{
-			RuleID: 1,
-			Proto:  "udp",
-			SNAT:   true,
-			Iface:  "eth1",
-		}
-
-		mock.ExpectBegin()
-		mock.ExpectExec("INSERT INTO `iptables_rules`").
-			WithArgs(
-				sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
-				rule.RuleID, rule.Proto, rule.SNAT, rule.Iface,
-			).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
-
-		err := svc.CreateIPTablesRule(rule)
-		require.NoError(t, err)
-	})
-}
-
 func TestListAllRules(t *testing.T) {
 	svc, mock := setupTestRuleService(t)
 
 	t.Run("获取所有规则", func(t *testing.T) {
 		rows := sqlmock.NewRows([]string{"id", "node_id", "user_id", "name", "protocol", "enabled", "traffic_used", "traffic_limit", "speed_limit", "mode", "listen_port"}).
 			AddRow(1, 1, 1, "Rule 1", "gost", true, 0, 1024*1024*1024, 0, "direct", 8080).
-			AddRow(2, 1, 2, "Rule 2", "iptables", true, 0, 2048*1024*1024, 0, "rr", 9090)
+			AddRow(2, 1, 2, "Rule 2", "gost", true, 0, 2048*1024*1024, 0, "rr", 9090)
 
 		mock.ExpectQuery("SELECT \\* FROM `forwarding_rules`").
 			WillReturnRows(rows)

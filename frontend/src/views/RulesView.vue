@@ -212,24 +212,6 @@
               </div>
             </v-expand-transition>
 
-            <v-expand-transition>
-              <div v-if="form.protocol === 'iptables'">
-                <v-divider class="my-4" />
-                <div class="text-subtitle-1 font-weight-bold mb-2">IPTables 配置</div>
-                <v-row>
-                  <v-col cols="12" md="4">
-                    <v-select v-model="form.iptables_config.proto" :items="['tcp', 'udp']" label="协议" />
-                  </v-col>
-                  <v-col cols="12" md="4" class="d-flex align-center">
-                    <v-switch v-model="form.iptables_config.snat" label="SNAT (MASQUERADE)" color="primary" hide-details />
-                  </v-col>
-                  <v-col cols="12" md="4">
-                    <v-text-field v-model="form.iptables_config.iface" label="入站网卡(可选)" hint="例如 eth0" persistent-hint />
-                  </v-col>
-                </v-row>
-              </div>
-            </v-expand-transition>
-
             <v-switch
               v-model="form.enabled"
               label="启用规则"
@@ -298,11 +280,6 @@ function defaultForm() {
       tls: false,
       chain: '',
       timeout: 0
-    },
-    iptables_config: {
-      proto: 'tcp',
-      snat: false,
-      iface: ''
     }
   }
 }
@@ -328,8 +305,7 @@ const headers = [
 ]
 
 const protocols = [
-  { title: 'Gost 用户态转发', value: 'gost' },
-  { title: '内核转发 (iptables)', value: 'iptables' }
+  { title: 'Gost 用户态转发', value: 'gost' }
 ]
 const modes = [
   { title: '直连', value: 'direct' },
@@ -350,7 +326,7 @@ function formatDate(date) {
 }
 
 function getProtocolColor(protocol) {
-  const colors = { gost: 'blue', iptables: 'orange' }
+  const colors = { gost: 'blue' }
   return colors[protocol] || 'grey'
 }
 
@@ -390,6 +366,7 @@ async function loadRuleDetail(id) {
     const body = await ruleAPI.get(id)
     const detail = body?.code === 0 ? body.data : null
     if (!detail?.rule) throw new Error('Invalid rule detail')
+    if (detail.rule.protocol !== 'gost') throw new Error('当前仅支持编辑 gost 规则')
 
     editingRule.value = detail.rule
     form.value = {
@@ -413,12 +390,7 @@ async function loadRuleDetail(id) {
         tls: false,
         chain: '',
         timeout: detail.gost_config.timeout || 0
-      } : defaultForm().gost_config,
-      iptables_config: detail.iptables_config ? {
-        proto: detail.iptables_config.proto || 'tcp',
-        snat: !!detail.iptables_config.snat,
-        iface: detail.iptables_config.iface || ''
-      } : defaultForm().iptables_config
+      } : defaultForm().gost_config
     }
 
     showCreateDialog.value = true
@@ -451,8 +423,7 @@ async function saveRule() {
         weight: Math.max(1, Number(t.weight) || 1),
         enabled: t.enabled !== false
       })).filter((t) => t.host && t.port > 0),
-      gost_config: form.value.protocol === 'gost' ? form.value.gost_config : null,
-      iptables_config: form.value.protocol === 'iptables' ? form.value.iptables_config : null
+      gost_config: form.value.gost_config
     }
 
     if (!data.node_id) delete data.node_id
@@ -461,7 +432,7 @@ async function saveRule() {
       return
     }
     if (data.protocol === 'gost' && data.speed_limit > 0) {
-      showSnackbar('gost 规则暂不支持限速，请改用内核转发', 'error')
+      showSnackbar('gost 规则暂不支持限速', 'error')
       return
     }
 
@@ -524,7 +495,7 @@ async function loadNodes() {
     const response = await nodeAPI.list()
     nodes.value = (response.data || []).map((node) => ({
       ...node,
-      protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost' || item === 'iptables') : []
+      protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : []
     }))
   } catch {
     nodes.value = []

@@ -156,51 +156,6 @@ func (s *RuleService) UpsertGostRule(ruleID uint, updates map[string]interface{}
 	return s.db.Model(&models.GostRule{}).Where("rule_id = ?", ruleID).Updates(updates).Error
 }
 
-// GetIPTablesRule 获取 iptables 协议配置
-func (s *RuleService) GetIPTablesRule(ruleID uint) (*models.IPTablesRule, error) {
-	var rule models.IPTablesRule
-	if err := s.db.Where("rule_id = ?", ruleID).First(&rule).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &rule, nil
-}
-
-// CreateIPTablesRule 创建 iptables 协议配置
-func (s *RuleService) CreateIPTablesRule(rule *models.IPTablesRule) error {
-	return s.db.Create(rule).Error
-}
-
-func (s *RuleService) DeleteIPTablesRule(ruleID uint) error {
-	return s.db.Where("rule_id = ?", ruleID).Delete(&models.IPTablesRule{}).Error
-}
-
-// UpsertIPTablesRule creates or updates iptables config for a rule.
-func (s *RuleService) UpsertIPTablesRule(ruleID uint, updates map[string]interface{}) error {
-	var existing models.IPTablesRule
-	err := s.db.Where("rule_id = ?", ruleID).First(&existing).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			cfg := models.IPTablesRule{RuleID: ruleID}
-			if v, ok := updates["proto"]; ok {
-				cfg.Proto, _ = v.(string)
-			}
-			if v, ok := updates["snat"]; ok {
-				cfg.SNAT, _ = v.(bool)
-			}
-			if v, ok := updates["iface"]; ok {
-				cfg.Iface, _ = v.(string)
-			}
-			return s.db.Create(&cfg).Error
-		}
-		return err
-	}
-
-	return s.db.Model(&models.IPTablesRule{}).Where("rule_id = ?", ruleID).Updates(updates).Error
-}
-
 // MaxTrafficLimit 单次更新流量上限（防止异常大流量），单位：字节
 const MaxTrafficLimit int64 = 1024 * 1024 * 1024 * 10 // 10GB
 

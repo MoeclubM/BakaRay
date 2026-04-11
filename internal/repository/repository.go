@@ -83,7 +83,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.ForwardingRule{},
 		&models.Target{},
 		&models.GostRule{},
-		&models.IPTablesRule{},
 		&models.Package{},
 		&models.Order{},
 		&models.PaymentConfig{},

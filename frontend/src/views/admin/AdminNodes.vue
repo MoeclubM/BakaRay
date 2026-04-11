@@ -108,7 +108,7 @@
 
             <v-combobox
               v-model="form.protocols"
-              :items="['gost', 'iptables']"
+              :items="['gost']"
               label="支持的协议"
               multiple
               chips
@@ -185,7 +185,7 @@ const form = ref({
   port: 8081,
   secret: '',
   node_group_id: null,
-  protocols: ['gost', 'iptables'],
+  protocols: ['gost'],
   region: '',
   multiplier: 1.0
 })
@@ -209,7 +209,7 @@ function editNode(node) {
   editingNode.value = node
   form.value = {
     ...node,
-    protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost' || item === 'iptables') : ['gost', 'iptables']
+    protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost']
   }
   showCreateDialog.value = true
 }
@@ -228,7 +228,7 @@ function closeDialog() {
     port: 8081,
     secret: '',
     node_group_id: null,
-    protocols: ['gost', 'iptables'],
+    protocols: ['gost'],
     region: '',
     multiplier: 1.0
   }

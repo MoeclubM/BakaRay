@@ -1,5 +1,5 @@
 # 外部 MySQL 配置
-# 使用方式: docker-compose -f docker-compose.yml -f docker-compose.external.yml up -d
+# 使用方式: docker compose -f docker-compose.yml -f docker-compose.external.yml up -d
 
 services:
   # 覆盖面板服务，使用外部数据库
@@ -15,6 +15,6 @@ services:
 
   # Redis 配置（使用相同密码）
   bakaray-redis:
-    command: redis-server --appendonly yes --requirepass bakaray-redis-password
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-bakaray-redis-password}
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "bakaray-redis-password", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-bakaray-redis-password}", "ping"]

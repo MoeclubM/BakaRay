@@ -1,167 +1,314 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# BakaRay 安装脚本
-# 支持本地部署和 Docker 部署
+set -euo pipefail
 
-set -e
+REPO_OWNER="MoeclubM"
+REPO_NAME="BakaRay"
+DEFAULT_INSTALL_DIR="/opt/bakaray"
+DEFAULT_PANEL_IMAGE="ghcr.io/moeclubm/bakaray/panel"
+DEFAULT_PANEL_PORT="8500"
+DEFAULT_SERVER_MODE="release"
+DEFAULT_DB_TYPE="sqlite"
+DEFAULT_DB_PATH="/app/data/bakaray.db"
+DEFAULT_REDIS_PASSWORD="bakaray-redis-password"
+DEFAULT_NODE_REPORT_INTERVAL="30"
+DEFAULT_INIT_USERNAME="admin"
+DEFAULT_INIT_ROLE="admin"
+DEFAULT_INIT_GROUP="0"
 
-# 颜色
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
+blue='\033[0;34m'
+green='\033[0;32m'
+yellow='\033[1;33m'
+red='\033[0;31m'
+nc='\033[0m'
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}         BakaRay 安装程序${NC}"
-echo -e "${BLUE}========================================${NC}"
-echo ""
+if [[ "${OSTYPE:-}" != linux* ]]; then
+    echo -e "${red}此脚本仅支持 Linux。${nc}" >&2
+    exit 1
+fi
 
-# 生成随机密钥
+if ! command -v curl >/dev/null 2>&1; then
+    echo -e "${red}缺少 curl，请先安装。${nc}" >&2
+    exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+    echo -e "${red}缺少 Docker，请先安装并启动 Docker。${nc}" >&2
+    exit 1
+fi
+
+if docker compose version >/dev/null 2>&1; then
+    compose_cmd=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+    compose_cmd=(docker-compose)
+else
+    echo -e "${red}缺少 Docker Compose，请先安装 docker compose 插件或 docker-compose。${nc}" >&2
+    exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+    echo -e "${red}Docker 守护进程不可用，请先启动 Docker。${nc}" >&2
+    exit 1
+fi
+
 generate_secret() {
-    cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 32
+    od -An -N20 -tx1 /dev/urandom | tr -d ' \n'
 }
 
-# 安装类型选择
-echo -e "${YELLOW}请选择安装方式:${NC}"
-echo "  1) Docker 部署 (SQLite, 推荐)"
-echo "  2) Docker 部署 (外部 MySQL)"
-echo "  3) 本地编译部署 (SQLite)"
-echo ""
-read -p "请输入选项 [1-3]: " INSTALL_TYPE
+resolve_latest_release_tag() {
+    curl -fsSL "https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest" \
+        | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        | head -n 1
+}
 
-case $INSTALL_TYPE in
-    1|2)
-        # Docker 部署
-        if [ "$INSTALL_TYPE" = "2" ]; then
-            echo ""
-            echo -e "${YELLOW}请输入外部 MySQL 连接信息:${NC}"
-            read -p "  MySQL 主机地址: " DB_HOST
-            read -p "  端口 [3306]: " DB_PORT
-            DB_PORT=${DB_PORT:-3306}
-            read -p "  用户名: " DB_USERNAME
-            read -p "  密码: " DB_PASSWORD
-            read -p "  数据库名: " DB_NAME
-        fi
+has_env_key() {
+    grep -q "^$1=" "$env_file"
+}
 
-        echo ""
-        echo -e "${YELLOW}配置安全密钥 (直接回车使用随机生成):${NC}"
-        read -p "  JWT Secret: " JWT_SECRET
-        [ -z "$JWT_SECRET" ] && JWT_SECRET=$(generate_secret)
-        echo -e "  ${GREEN}JWT Secret: $JWT_SECRET${NC}"
+set_env_value() {
+    local key="$1"
+    local value="$2"
+    local escaped
 
-        read -p "  Node Secret: " NODE_SECRET
-        [ -z "$NODE_SECRET" ] && NODE_SECRET=$(generate_secret)
-        echo -e "  ${GREEN}Node Secret: $NODE_SECRET${NC}"
+    escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
+    if has_env_key "$key"; then
+        sed -i "s|^${key}=.*|${key}=${escaped}|" "$env_file"
+    else
+        printf '%s=%s\n' "$key" "$value" >>"$env_file"
+    fi
+}
 
-        echo ""
-        echo -e "${YELLOW}构建镜像并启动...${NC}"
+ensure_env_value() {
+    local key="$1"
+    local default_value="$2"
 
-        # 构建并启动
-        if [ "$INSTALL_TYPE" = "2" ]; then
-            # 外部 MySQL 模式
-            DB_TYPE=mysql \
-            DB_HOST="$DB_HOST" \
-            DB_PORT="$DB_PORT" \
-            DB_USERNAME="$DB_USERNAME" \
-            DB_PASSWORD="$DB_PASSWORD" \
-            DB_NAME="$DB_NAME" \
-            JWT_SECRET="$JWT_SECRET" \
-            NODE_SECRET="$NODE_SECRET" \
-            docker-compose -f docker-compose.yml -f docker-compose.external.yml up -d --build
-        else
-            # SQLite 模式
-            JWT_SECRET="$JWT_SECRET" \
-            NODE_SECRET="$NODE_SECRET" \
-            docker-compose up -d --build
-        fi
+    if [[ ${!key+x} ]]; then
+        set_env_value "$key" "${!key}"
+        return
+    fi
 
-        echo ""
-        echo -e "${GREEN}========================================${NC}"
-        echo -e "${GREEN}安装完成！${NC}"
-        echo -e "${GREEN}========================================${NC}"
-        echo ""
-        echo -e "${CYAN}访问地址: http://localhost:8500${NC}"
-        echo ""
-        echo "查看日志: docker-compose logs -f bakaray-panel"
-        echo "停止服务: docker-compose down"
-        ;;
+    if ! has_env_key "$key"; then
+        set_env_value "$key" "$default_value"
+    fi
+}
 
-    3)
-        # 本地编译部署
-        echo ""
-        echo -e "${YELLOW}配置安全密钥 (直接回车使用随机生成):${NC}"
-        read -p "  JWT Secret: " JWT_SECRET
-        [ -z "$JWT_SECRET" ] && JWT_SECRET=$(generate_secret)
-        echo -e "  ${GREEN}JWT Secret: $JWT_SECRET${NC}"
+read_container_env() {
+    local key="$1"
 
-        read -p "  Node Secret: " NODE_SECRET
-        [ -z "$NODE_SECRET" ] && NODE_SECRET=$(generate_secret)
-        echo -e "  ${GREEN}Node Secret: $NODE_SECRET${NC}"
+    docker inspect -f '{{range .Config.Env}}{{println .}}{{end}}' bakaray-panel 2>/dev/null \
+        | sed -n "s/^${key}=//p" \
+        | head -n 1
+}
 
-        # 创建目录
-        mkdir -p data logs
+read_panel_port_from_container() {
+    docker port bakaray-panel 80/tcp 2>/dev/null \
+        | head -n 1 \
+        | sed -E 's/.*:([0-9]+)$/\1/'
+}
 
-        # 生成配置文件
-        cat > config.yaml << EOF
-# BakaRay 配置文件
-# 由 install.sh 自动生成
+write_compose_file() {
+    cat >"$compose_file" <<'EOF'
+services:
+  bakaray-panel:
+    image: ${PANEL_IMAGE}:${PANEL_IMAGE_TAG}
+    container_name: bakaray-panel
+    ports:
+      - "${PANEL_PORT:-8500}:80"
+    environment:
+      - DB_TYPE=${DB_TYPE:-sqlite}
+      - DB_PATH=${DB_PATH:-/app/data/bakaray.db}
+      - DB_HOST=${DB_HOST:-localhost}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USERNAME=${DB_USERNAME:-root}
+      - DB_PASSWORD=${DB_PASSWORD:-}
+      - DB_NAME=${DB_NAME:-bakaray}
+      - REDIS_HOST=bakaray-redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-bakaray-redis-password}
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=${SERVER_MODE:-release}
+      - JWT_SECRET=${JWT_SECRET}
+      - NODE_SECRET=${NODE_SECRET}
+      - NODE_REPORT_INTERVAL=${NODE_REPORT_INTERVAL:-30}
+      - INIT_USERNAME=${INIT_USERNAME:-admin}
+      - INIT_PASSWORD=${INIT_PASSWORD:-}
+      - INIT_ROLE=${INIT_ROLE:-admin}
+      - INIT_GROUP=${INIT_GROUP:-0}
+    volumes:
+      - bakaray_data:/app/data
+      - bakaray_logs:/app/logs
+    depends_on:
+      bakaray-redis:
+        condition: service_healthy
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
-server:
-  host: "0.0.0.0"
-  port: "8080"
-  mode: "release"
+  bakaray-redis:
+    image: redis:7-alpine
+    container_name: bakaray-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:-bakaray-redis-password}"]
+    volumes:
+      - bakaray_redis_data:/data
+    networks:
+      - bakaray_net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-bakaray-redis-password}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-database:
-  type: "sqlite"
-  path: "data/bakaray.db"
+networks:
+  bakaray_net:
+    name: bakaray_net
+    driver: bridge
 
-redis:
-  host: "localhost"
-  port: 6379
-  password: "bakaray-redis-password"
-  db: 0
-  pool_size: 10
-
-site:
-  name: "BakaRay"
-  domain: "http://localhost:8080"
-  node_secret: "${NODE_SECRET}"
-  node_report_interval: 30
-
-jwt:
-  secret: "${JWT_SECRET}"
-  expiration: 86400
+volumes:
+  bakaray_data:
+  bakaray_redis_data:
+  bakaray_logs:
 EOF
+}
 
-        echo ""
-        echo -e "${GREEN}配置文件已生成: config.yaml${NC}"
+wait_for_panel_healthy() {
+    local attempt
 
-        # 下载依赖
-        echo -e "${YELLOW}下载 Go 依赖...${NC}"
-        go mod download
+    for attempt in $(seq 1 60); do
+        status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' bakaray-panel 2>/dev/null || true)
+        if [[ "$status" == "healthy" ]]; then
+            return
+        fi
+        if [[ "$status" == "unhealthy" ]]; then
+            docker logs --tail 100 bakaray-panel || true
+            echo -e "${red}面板容器健康检查失败。${nc}" >&2
+            exit 1
+        fi
+        sleep 2
+    done
 
-        # 构建
-        echo -e "${YELLOW}编译中...${NC}"
-        go build -ldflags="-s -w" -o bakaray ./cmd/server
+    docker logs --tail 100 bakaray-panel || true
+    echo -e "${red}等待面板启动超时。${nc}" >&2
+    exit 1
+}
 
-        echo ""
-        echo -e "${GREEN}========================================${NC}"
-        echo -e "${GREEN}安装完成！${NC}"
-        echo -e "${GREEN}========================================${NC}"
-        echo ""
-        echo -e "${CYAN}启动服务: ./bakaray${NC}"
-        echo -e "${CYAN}访问地址: http://localhost:8080${NC}"
-        echo ""
-        echo "初次使用请运行: go run ./cmd/init-account --username <name> --password <secret>"
-        echo "配置文件: config.yaml"
-        echo "数据库文件: data/bakaray.db"
-        ;;
-    *)
-        echo -e "${RED}无效选项${NC}"
+requested_version="${BAKARAY_VERSION:-latest}"
+install_dir="${INSTALL_DIR:-$DEFAULT_INSTALL_DIR}"
+release_tag=""
+image_tag=""
+existing_container=0
+env_created=0
+imported_existing_config=0
+
+echo -e "${blue}========================================${nc}"
+echo -e "${blue}      BakaRay 一键安装与升级脚本${nc}"
+echo -e "${blue}========================================${nc}"
+
+if [[ "$requested_version" == "latest" ]]; then
+    release_tag=$(resolve_latest_release_tag)
+    if [[ -z "$release_tag" ]]; then
+        echo -e "${red}无法获取最新发布版本，请检查网络或 GitHub API 访问情况。${nc}" >&2
         exit 1
-        ;;
-esac
+    fi
+    image_tag="${release_tag#v}"
+else
+    if [[ "$requested_version" == v* ]]; then
+        release_tag="$requested_version"
+        image_tag="${requested_version#v}"
+    else
+        release_tag="v${requested_version}"
+        image_tag="$requested_version"
+    fi
+fi
+
+compose_file="${install_dir}/docker-compose.yml"
+env_file="${install_dir}/.env"
+
+mkdir -p "$install_dir"
+
+if docker inspect bakaray-panel >/dev/null 2>&1; then
+    existing_container=1
+fi
+
+if [[ ! -f "$env_file" ]]; then
+    : >"$env_file"
+    env_created=1
+fi
+
+if [[ "$env_created" == "1" && "$existing_container" == "1" ]]; then
+    for key in DB_TYPE DB_PATH DB_HOST DB_PORT DB_USERNAME DB_PASSWORD DB_NAME REDIS_PASSWORD SERVER_MODE JWT_SECRET NODE_SECRET NODE_REPORT_INTERVAL INIT_USERNAME INIT_PASSWORD INIT_ROLE INIT_GROUP; do
+        value="$(read_container_env "$key")"
+        if [[ -n "$value" ]]; then
+            set_env_value "$key" "$value"
+        fi
+    done
+
+    panel_port="$(read_panel_port_from_container)"
+    if [[ -n "$panel_port" ]]; then
+        set_env_value "PANEL_PORT" "$panel_port"
+    fi
+
+    imported_existing_config=1
+fi
+
+set_env_value "PANEL_IMAGE_TAG" "$image_tag"
+set_env_value "PANEL_RELEASE_TAG" "$release_tag"
+ensure_env_value "PANEL_IMAGE" "$DEFAULT_PANEL_IMAGE"
+ensure_env_value "PANEL_PORT" "$DEFAULT_PANEL_PORT"
+ensure_env_value "DB_TYPE" "$DEFAULT_DB_TYPE"
+ensure_env_value "DB_PATH" "$DEFAULT_DB_PATH"
+ensure_env_value "DB_HOST" "localhost"
+ensure_env_value "DB_PORT" "3306"
+ensure_env_value "DB_USERNAME" "root"
+ensure_env_value "DB_PASSWORD" ""
+ensure_env_value "DB_NAME" "bakaray"
+ensure_env_value "REDIS_PASSWORD" "$DEFAULT_REDIS_PASSWORD"
+ensure_env_value "SERVER_MODE" "$DEFAULT_SERVER_MODE"
+ensure_env_value "JWT_SECRET" "$(generate_secret)"
+ensure_env_value "NODE_SECRET" "$(generate_secret)"
+ensure_env_value "NODE_REPORT_INTERVAL" "$DEFAULT_NODE_REPORT_INTERVAL"
+ensure_env_value "INIT_USERNAME" "$DEFAULT_INIT_USERNAME"
+ensure_env_value "INIT_PASSWORD" "$(generate_secret)"
+ensure_env_value "INIT_ROLE" "$DEFAULT_INIT_ROLE"
+ensure_env_value "INIT_GROUP" "$DEFAULT_INIT_GROUP"
+
+write_compose_file
+
+echo -e "${yellow}安装目录:${nc} $install_dir"
+echo -e "${yellow}目标版本:${nc} $release_tag"
+
+panel_image="$(sed -n 's/^PANEL_IMAGE=//p' "$env_file" | head -n 1)"
+echo -e "${yellow}面板镜像:${nc} ${panel_image}:${image_tag}"
+
+"${compose_cmd[@]}" --project-name bakaray --env-file "$env_file" -f "$compose_file" pull
+"${compose_cmd[@]}" --project-name bakaray --env-file "$env_file" -f "$compose_file" up -d --remove-orphans
+
+wait_for_panel_healthy
+
+panel_port="$(sed -n 's/^PANEL_PORT=//p' "$env_file" | head -n 1)"
+init_username="$(sed -n 's/^INIT_USERNAME=//p' "$env_file" | head -n 1)"
+init_password="$(sed -n 's/^INIT_PASSWORD=//p' "$env_file" | head -n 1)"
 
 echo ""
+echo -e "${green}安装完成，当前版本 ${release_tag} 已启动。${nc}"
+echo -e "${green}访问地址:${nc} http://<服务器IP>:${panel_port}"
+echo -e "${green}配置文件:${nc} ${env_file}"
+echo -e "${green}查看日志:${nc} cd ${install_dir} && ${compose_cmd[*]} --project-name bakaray --env-file .env -f docker-compose.yml logs -f bakaray-panel"
+
+if [[ "$env_created" == "1" && "$imported_existing_config" == "0" ]]; then
+    echo ""
+    echo -e "${yellow}首次安装已生成初始管理员账号，请尽快登录后修改密码。${nc}"
+    echo "用户名: ${init_username}"
+    echo "密码: ${init_password}"
+fi
+
+if [[ "$existing_container" == "1" ]]; then
+    echo ""
+    echo -e "${green}检测到已有部署，已按当前发布版本完成升级。${nc}"
+fi

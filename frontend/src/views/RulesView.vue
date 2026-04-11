@@ -482,9 +482,11 @@ async function loadRules() {
   loading.value = true
   try {
     const response = await ruleAPI.list()
-    rules.value = response.data || []
+    rules.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     console.error('Failed to load rules:', error)
+    rules.value = []
+    showSnackbar(error.response?.data?.message || error.message || '加载规则失败', 'error')
   } finally {
     loading.value = false
   }
@@ -493,17 +495,18 @@ async function loadRules() {
 async function loadNodes() {
   try {
     const response = await nodeAPI.list()
-    nodes.value = (response.data || []).map((node) => ({
+    const nodeList = Array.isArray(response.data) ? response.data : []
+    nodes.value = nodeList.map((node) => ({
       ...node,
       protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : []
     }))
-  } catch {
+  } catch (error) {
     nodes.value = []
+    showSnackbar(error.response?.data?.message || error.message || '加载节点失败', 'error')
   }
 }
 
-onMounted(() => {
-  loadRules()
-  loadNodes()
+onMounted(async () => {
+  await Promise.all([loadRules(), loadNodes()])
 })
 </script>

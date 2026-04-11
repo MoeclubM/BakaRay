@@ -18,8 +18,8 @@
             <div class="text-grey">
               剩余流量：<span class="text-primary font-weight-bold">{{ formatBytes(user?.traffic_balance || 0) }}</span>
             </div>
-            <div v-if="userGroupName" class="text-grey text-caption mt-1">
-              用户组：<span class="text-info">{{ userGroupName }}</span>
+            <div class="text-grey text-caption mt-1">
+              用户组：<span class="text-info">{{ user?.user_group_name || '未分配' }}</span>
             </div>
           </div>
           <v-spacer />
@@ -126,23 +126,11 @@ import { ref, onMounted, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { nodeAPI, ruleAPI, userAPI } from '@/api'
 import { useSnackbar } from '@/composables/useSnackbar'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
-
-dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
 
 const authStore = useAuthStore()
 const { showSnackbar } = useSnackbar()
 
 const user = computed(() => authStore.user)
-const userGroupName = computed(() => {
-  const groupId = user.value?.user_group_id
-  if (!groupId) return '未分配'
-  // 简单处理，实际应从API获取用户组名称
-  return groupId === 1 ? '测试用户组' : `用户组 #${groupId}`
-})
 
 const nodes = ref([])
 const rules = ref([])
@@ -170,8 +158,8 @@ onMounted(async () => {
       ruleAPI.list(),
       userAPI.getTrafficStats({ days: 30 })
     ])
-    nodes.value = nodesRes.data || []
-    rules.value = rulesRes.data || []
+    nodes.value = Array.isArray(nodesRes.data) ? nodesRes.data : []
+    rules.value = Array.isArray(rulesRes.data) ? rulesRes.data : []
     trafficStats.value = trafficRes.data || { bytes_in: 0, bytes_out: 0 }
   } catch (error) {
     console.error('Failed to load dashboard data:', error)

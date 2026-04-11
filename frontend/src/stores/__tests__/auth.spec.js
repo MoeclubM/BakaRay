@@ -150,12 +150,15 @@ describe('auth store', () => {
     })
 
     it('should fetch and set user profile', async () => {
-      mockUserAPI.getProfile.mockResolvedValue({ code: 0, data: { id: 1, username: 'testuser' } })
+      mockUserAPI.getProfile.mockResolvedValue({
+        code: 0,
+        data: { id: 1, username: 'testuser', user_group_name: '正式用户组' }
+      })
       const store = useAuthStore()
       store.token = 'test-token'
       const result = await store.fetchProfile()
       expect(result).toBe(true)
-      expect(store.user).toEqual({ id: 1, username: 'testuser' })
+      expect(store.user).toEqual({ id: 1, username: 'testuser', user_group_name: '正式用户组' })
     })
 
     it('should logout on profile fetch failure', async () => {

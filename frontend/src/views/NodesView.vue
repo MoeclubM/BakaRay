@@ -156,7 +156,7 @@ function toggleProbe(nodeId) {
 async function loadNodes() {
   try {
     const response = await nodeAPI.list()
-    nodes.value = response.data || []
+    nodes.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
     console.error('Failed to load nodes:', error)
   }

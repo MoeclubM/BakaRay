@@ -14,15 +14,17 @@ import (
 
 // UserHandler 用户处理器
 type UserHandler struct {
-	userService *services.UserService
-	ruleService *services.RuleService
+	userService      *services.UserService
+	ruleService      *services.RuleService
+	userGroupService *services.UserGroupService
 }
 
 // NewUserHandler 创建用户处理器
-func NewUserHandler(userService *services.UserService, ruleService *services.RuleService) *UserHandler {
+func NewUserHandler(userService *services.UserService, ruleService *services.RuleService, userGroupService *services.UserGroupService) *UserHandler {
 	return &UserHandler{
-		userService: userService,
-		ruleService: ruleService,
+		userService:      userService,
+		ruleService:      ruleService,
+		userGroupService: userGroupService,
 	}
 }
 
@@ -41,6 +43,14 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
+	userGroupName := ""
+	if user.UserGroupID > 0 && h.userGroupService != nil {
+		group, err := h.userGroupService.GetUserGroupByID(user.UserGroupID)
+		if err == nil {
+			userGroupName = group.Name
+		}
+	}
+
 	log.Info("GetProfile success", "username", user.Username)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -51,6 +61,7 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 			"balance":         user.Balance,
 			"traffic_balance": user.TrafficBalance,
 			"user_group_id":   user.UserGroupID,
+			"user_group_name": userGroupName,
 			"role":            user.Role,
 			"created_at":      user.CreatedAt,
 		},

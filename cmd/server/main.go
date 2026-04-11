@@ -70,7 +70,7 @@ func main() {
 	userGroupService := services.NewUserGroupService(db)
 
 	authHandler := handlers.NewAuthHandler(userService)
-	userHandler := handlers.NewUserHandler(userService, ruleService)
+	userHandler := handlers.NewUserHandler(userService, ruleService, userGroupService)
 	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService, siteConfigService)
 	ruleHandler := handlers.NewRuleHandler(ruleService, nodeService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
@@ -101,7 +101,7 @@ func main() {
 
 	frontendRoutes := []string{
 		"/login", "/register", "/dashboard", "/nodes", "/rules",
-		"/packages", "/orders", "/profile", "/deposit/callback",
+		"/packages", "/orders", "/deposit/callback",
 		"/admin", "/admin/dashboard", "/admin/nodes", "/admin/users",
 		"/admin/packages", "/admin/orders",
 		"/admin/user-groups", "/admin/payments", "/admin/settings",

@@ -111,15 +111,6 @@ func Setup(
 				payments.DELETE("/:id", paymentHandler.DeletePaymentConfig)
 			}
 
-			// 节点组
-			nodeGroups := admin.Group("/node-groups")
-			{
-				nodeGroups.GET("", adminHandler.GetNodeGroups)
-				nodeGroups.POST("", adminHandler.CreateNodeGroup)
-				nodeGroups.PUT("/:id", adminHandler.UpdateNodeGroup)
-				nodeGroups.DELETE("/:id", adminHandler.DeleteNodeGroup)
-			}
-
 			// 节点管理
 			adminNodes := admin.Group("/nodes")
 			{

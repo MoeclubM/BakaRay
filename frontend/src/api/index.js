@@ -102,12 +102,6 @@ export const adminAPI = {
     update: (id, data) => client.put(`/admin/payments/${id}`, data),
     delete: (id) => client.delete(`/admin/payments/${id}`)
   },
-  nodeGroups: {
-    list: () => client.get('/admin/node-groups').then(normalizeListResponse),
-    create: (data) => client.post('/admin/node-groups', data),
-    update: (id, data) => client.put(`/admin/node-groups/${id}`, data),
-    delete: (id) => client.delete(`/admin/node-groups/${id}`)
-  },
   userGroups: {
     list: () => client.get('/admin/user-groups').then(normalizeListResponse),
     create: (data) => client.post('/admin/user-groups', data),

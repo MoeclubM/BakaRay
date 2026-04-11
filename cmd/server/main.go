@@ -67,7 +67,6 @@ func main() {
 	paymentService := services.NewPaymentService(db, redis)
 	paymentConfigService := services.NewPaymentConfigService(db)
 	siteConfigService := services.NewSiteConfigService(db)
-	nodeGroupService := services.NewNodeGroupService(db)
 	userGroupService := services.NewUserGroupService(db)
 
 	authHandler := handlers.NewAuthHandler(userService)
@@ -75,7 +74,7 @@ func main() {
 	nodeHandler := handlers.NewNodeHandler(nodeService, ruleService, siteConfigService)
 	ruleHandler := handlers.NewRuleHandler(ruleService, nodeService)
 	paymentHandler := handlers.NewPaymentHandler(paymentService, paymentConfigService)
-	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, nodeGroupService, userGroupService, siteConfigService)
+	adminHandler := handlers.NewAdminHandler(userService, nodeService, ruleService, paymentService, userGroupService, siteConfigService)
 
 	r := gin.New()
 
@@ -104,7 +103,7 @@ func main() {
 		"/login", "/register", "/dashboard", "/nodes", "/rules",
 		"/packages", "/orders", "/profile", "/deposit/callback",
 		"/admin", "/admin/dashboard", "/admin/nodes", "/admin/users",
-		"/admin/packages", "/admin/orders", "/admin/node-groups",
+		"/admin/packages", "/admin/orders",
 		"/admin/user-groups", "/admin/payments", "/admin/settings",
 	}
 	for _, route := range frontendRoutes {

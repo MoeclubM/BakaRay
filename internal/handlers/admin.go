@@ -19,19 +19,17 @@ type AdminHandler struct {
 	nodeService       *services.NodeService
 	ruleService       *services.RuleService
 	paymentService    *services.PaymentService
-	nodeGroupService  *services.NodeGroupService
 	userGroupService  *services.UserGroupService
 	siteConfigService *services.SiteConfigService
 }
 
 // NewAdminHandler 创建后台管理处理器
-func NewAdminHandler(userService *services.UserService, nodeService *services.NodeService, ruleService *services.RuleService, paymentService *services.PaymentService, nodeGroupService *services.NodeGroupService, userGroupService *services.UserGroupService, siteConfigService *services.SiteConfigService) *AdminHandler {
+func NewAdminHandler(userService *services.UserService, nodeService *services.NodeService, ruleService *services.RuleService, paymentService *services.PaymentService, userGroupService *services.UserGroupService, siteConfigService *services.SiteConfigService) *AdminHandler {
 	return &AdminHandler{
 		userService:       userService,
 		nodeService:       nodeService,
 		ruleService:       ruleService,
 		paymentService:    paymentService,
-		nodeGroupService:  nodeGroupService,
 		userGroupService:  userGroupService,
 		siteConfigService: siteConfigService,
 	}
@@ -197,107 +195,6 @@ func (h *AdminHandler) DeleteNode(c *gin.Context) {
 	}
 
 	log.Info("DeleteNode success", "node_id", id)
-
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
-}
-
-// --- 节点组管理 ---
-
-// GetNodeGroups 获取节点组列表
-func (h *AdminHandler) GetNodeGroups(c *gin.Context) {
-	requestID := c.GetString("request_id")
-	userID := middleware.GetUserID(c)
-	log := logger.WithContext(requestID, userID, "admin")
-
-	log.Debug("GetNodeGroups request")
-
-	groups, err := h.nodeGroupService.ListNodeGroups()
-	if err != nil {
-		logger.Error("GetNodeGroups: failed to list node groups", err, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取失败"})
-		return
-	}
-
-	log.Info("GetNodeGroups success", "group_count", len(groups))
-
-	c.JSON(http.StatusOK, gin.H{"code": 0, "data": groups})
-}
-
-// CreateNodeGroup 创建节点组
-func (h *AdminHandler) CreateNodeGroup(c *gin.Context) {
-	requestID := c.GetString("request_id")
-	userID := middleware.GetUserID(c)
-	log := logger.WithContext(requestID, userID, "admin")
-
-	var req struct {
-		Name        string `json:"name" binding:"required"`
-		Type        string `json:"type" binding:"required"`
-		Description string `json:"description"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		logger.Warn("CreateNodeGroup: invalid request", "error", err, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
-		return
-	}
-
-	log.Debug("CreateNodeGroup request", "name", req.Name, "type", req.Type)
-
-	group, err := h.nodeGroupService.CreateNodeGroup(req.Name, req.Type, req.Description)
-	if err != nil {
-		logger.Error("CreateNodeGroup: failed to create node group", err, "name", req.Name, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "创建失败"})
-		return
-	}
-
-	log.Info("CreateNodeGroup success", "group_id", group.ID, "name", req.Name)
-
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "创建成功", "data": gin.H{"id": group.ID}})
-}
-
-// UpdateNodeGroup 更新节点组
-func (h *AdminHandler) UpdateNodeGroup(c *gin.Context) {
-	requestID := c.GetString("request_id")
-	userID := middleware.GetUserID(c)
-	log := logger.WithContext(requestID, userID, "admin")
-
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-	var updates map[string]interface{}
-	if err := c.ShouldBindJSON(&updates); err != nil {
-		logger.Warn("UpdateNodeGroup: invalid request", "error", err, "group_id", id, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
-		return
-	}
-
-	log.Debug("UpdateNodeGroup request", "group_id", id)
-
-	if err := h.nodeGroupService.UpdateNodeGroup(uint(id), updates); err != nil {
-		logger.Error("UpdateNodeGroup: failed to update node group", err, "group_id", id, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败"})
-		return
-	}
-
-	log.Info("UpdateNodeGroup success", "group_id", id)
-
-	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功"})
-}
-
-// DeleteNodeGroup 删除节点组
-func (h *AdminHandler) DeleteNodeGroup(c *gin.Context) {
-	requestID := c.GetString("request_id")
-	userID := middleware.GetUserID(c)
-	log := logger.WithContext(requestID, userID, "admin")
-
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-
-	log.Debug("DeleteNodeGroup request", "group_id", id)
-
-	if err := h.nodeGroupService.DeleteNodeGroup(uint(id)); err != nil {
-		logger.Error("DeleteNodeGroup: failed to delete node group", err, "group_id", id, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "删除失败"})
-		return
-	}
-
-	log.Info("DeleteNodeGroup success", "group_id", id)
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
 }

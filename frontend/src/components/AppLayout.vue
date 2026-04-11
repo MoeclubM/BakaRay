@@ -69,7 +69,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useTheme, useDisplay } from 'vuetify'
 import { useAuthStore } from '@/stores/auth'
@@ -104,18 +104,6 @@ const menuItems = computed(() => {
     { title: '我的订单', icon: 'mdi-receipt', to: '/orders' }
   ]
 })
-
-const adminMenuItems = [
-  { title: '概览', icon: 'mdi-chart-bar', to: '/admin' },
-  { title: '节点管理', icon: 'mdi-server', to: '/admin/nodes' },
-  { title: '用户管理', icon: 'mdi-account-group', to: '/admin/users' },
-  { title: '套餐配置', icon: 'mdi-package-variant-closed', to: '/admin/packages' },
-  { title: '订单管理', icon: 'mdi-cart', to: '/admin/orders' },
-  { title: '节点组', icon: 'mdi-lan', to: '/admin/node-groups' },
-  { title: '用户组', icon: 'mdi-account-multiple', to: '/admin/user-groups' },
-  { title: '支付配置', icon: 'mdi-credit-card', to: '/admin/payments' },
-  { title: '站点设置', icon: 'mdi-cog', to: '/admin/settings' }
-]
 
 function toggleTheme() {
   theme.global.name.value = isDark.value ? 'light' : 'dark'

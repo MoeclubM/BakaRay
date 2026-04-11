@@ -93,11 +93,6 @@ const routes = [
         component: () => import('@/views/admin/AdminOrders.vue')
       },
       {
-        path: 'node-groups',
-        name: 'AdminNodeGroups',
-        component: () => import('@/views/admin/AdminNodeGroups.vue')
-      },
-      {
         path: 'user-groups',
         name: 'AdminUserGroups',
         component: () => import('@/views/admin/AdminUserGroups.vue')

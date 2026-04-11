@@ -2,7 +2,55 @@
   <div>
     <div class="d-flex align-center mb-6">
       <h1 class="text-h4">节点管理</h1>
+      <v-spacer />
+      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadNodes">
+        刷新列表
+      </v-btn>
     </div>
+
+    <v-row class="mb-4">
+      <v-col cols="12" md="4">
+        <v-card variant="tonal" color="primary">
+          <v-card-text class="d-flex align-center justify-space-between">
+            <div>
+              <div class="text-caption text-medium-emphasis">节点总数</div>
+              <div class="text-h4">{{ totalNodes }}</div>
+            </div>
+            <v-icon size="36">mdi-server-network</v-icon>
+          </v-card-text>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="4">
+        <v-card variant="tonal" color="success">
+          <v-card-text class="d-flex align-center justify-space-between">
+            <div>
+              <div class="text-caption text-medium-emphasis">在线节点</div>
+              <div class="text-h4">{{ onlineNodes }}</div>
+            </div>
+            <v-icon size="36">mdi-lan-connect</v-icon>
+          </v-card-text>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="4">
+        <v-card variant="tonal" color="error">
+          <v-card-text class="d-flex align-center justify-space-between">
+            <div>
+              <div class="text-caption text-medium-emphasis">离线节点</div>
+              <div class="text-h4">{{ offlineNodes }}</div>
+            </div>
+            <v-icon size="36">mdi-lan-disconnect</v-icon>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-alert
+      type="info"
+      variant="tonal"
+      class="mb-4"
+      icon="mdi-information-outline"
+      text="节点会在安装脚本首次执行后自动注册。此页面仅保留编辑、热更新和删除。"
+    />
 
     <v-card>
       <v-data-table
@@ -14,6 +62,20 @@
           <v-chip :color="item.status === 'online' ? 'success' : 'error'" size="small">
             {{ item.status === 'online' ? '在线' : '离线' }}
           </v-chip>
+        </template>
+
+        <template v-slot:item.name="{ item }">
+          <div class="d-flex flex-column">
+            <span class="font-weight-medium">{{ item.name }}</span>
+            <span class="text-caption text-medium-emphasis">倍率 {{ item.multiplier || 1 }}</span>
+          </div>
+        </template>
+
+        <template v-slot:item.host="{ item }">
+          <div class="d-flex flex-column">
+            <code>{{ item.host }}:{{ item.port }}</code>
+            <span class="text-caption text-medium-emphasis">HTTP 管理端口</span>
+          </div>
         </template>
 
         <template v-slot:item.region="{ item }">
@@ -84,14 +146,6 @@
               </v-col>
             </v-row>
 
-            <v-select
-              v-model="form.node_group_id"
-              :items="nodeGroups"
-              item-title="name"
-              item-value="id"
-              label="节点组"
-            />
-
             <v-combobox
               v-model="form.protocols"
               :items="['gost']"
@@ -145,7 +199,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { adminAPI } from '@/api'
 import { useSnackbar } from '@/composables/useSnackbar'
 import dayjs from 'dayjs'
@@ -153,7 +207,6 @@ import dayjs from 'dayjs'
 const { showSnackbar } = useSnackbar()
 
 const nodes = ref([])
-const nodeGroups = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
@@ -168,16 +221,19 @@ const form = ref({
   name: '',
   host: '',
   port: 8081,
-  node_group_id: null,
   protocols: ['gost'],
   region: '',
   multiplier: 1.0
 })
 
+const totalNodes = computed(() => nodes.value.length)
+const onlineNodes = computed(() => nodes.value.filter((item) => item.status === 'online').length)
+const offlineNodes = computed(() => totalNodes.value - onlineNodes.value)
+
 const headers = [
   { title: '状态', key: 'status', width: 100 },
   { title: '名称', key: 'name' },
-  { title: '地址', key: 'host' },
+  { title: '接入地址', key: 'host' },
   { title: '协议', key: 'protocols' },
   { title: '地区', key: 'region' },
   { title: '最后活跃', key: 'last_seen' },
@@ -195,7 +251,6 @@ function editNode(node) {
     name: node.name,
     host: node.host,
     port: node.port,
-    node_group_id: node.node_group_id ?? null,
     protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost'],
     region: node.region || '',
     multiplier: node.multiplier || 1
@@ -215,7 +270,6 @@ function closeDialog() {
     name: '',
     host: '',
     port: 8081,
-    node_group_id: null,
     protocols: ['gost'],
     region: '',
     multiplier: 1.0
@@ -264,6 +318,7 @@ async function reloadNode(node) {
   try {
     await adminAPI.nodes.reload(node.id)
     showSnackbar('热更新指令已下发', 'success')
+    loadNodes()
   } catch (error) {
     console.error('Failed to reload node:', error)
     showSnackbar(error.response?.data?.message || error.message || '热更新失败', 'error')
@@ -283,17 +338,7 @@ async function loadNodes() {
   }
 }
 
-async function loadNodeGroups() {
-  try {
-    const response = await adminAPI.nodeGroups.list()
-    nodeGroups.value = response.data || []
-  } catch {
-    nodeGroups.value = []
-  }
-}
-
 onMounted(() => {
   loadNodes()
-  loadNodeGroups()
 })
 </script>

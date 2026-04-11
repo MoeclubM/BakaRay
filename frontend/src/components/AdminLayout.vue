@@ -14,7 +14,6 @@
         <v-list-item to="/admin/users" prepend-icon="mdi-account-group" title="用户管理" />
         <v-list-item to="/admin/packages" prepend-icon="mdi-package-variant" title="套餐配置" />
         <v-list-item to="/admin/orders" prepend-icon="mdi-receipt" title="订单管理" />
-        <v-list-item to="/admin/node-groups" prepend-icon="mdi-lan" title="节点组" />
         <v-list-item to="/admin/user-groups" prepend-icon="mdi-account-multiple" title="用户组" />
         <v-list-item to="/admin/payments" prepend-icon="mdi-credit-card" title="支付配置" />
         <v-list-item to="/admin/settings" prepend-icon="mdi-cog" title="站点设置" />

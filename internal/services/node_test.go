@@ -79,6 +79,37 @@ func TestCreateNode(t *testing.T) {
 	})
 }
 
+func TestRegisterNode(t *testing.T) {
+	db := setupTestDB(t)
+	defer cleanupTestDB(db)
+
+	service := NewNodeService(db, nil)
+
+	t.Run("首次注册创建节点", func(t *testing.T) {
+		node, err := service.RegisterNode("auto-node", "10.0.0.1", 8081, "secret123")
+
+		require.NoError(t, err)
+		require.NotNil(t, node)
+		require.Equal(t, "auto-node", node.Name)
+		require.Equal(t, "10.0.0.1", node.Host)
+		require.Equal(t, 8081, node.Port)
+		require.Equal(t, "secret123", node.Secret)
+		require.Equal(t, models.StringSlice{"gost"}, node.Protocols)
+	})
+
+	t.Run("重复注册复用原节点ID", func(t *testing.T) {
+		first, err := service.RegisterNode("repeat-node", "10.0.0.2", 8081, "secret123")
+		require.NoError(t, err)
+
+		second, err := service.RegisterNode("repeat-node", "10.0.0.3", 8082, "secret123")
+		require.NoError(t, err)
+		require.Equal(t, first.ID, second.ID)
+		require.Equal(t, "10.0.0.3", second.Host)
+		require.Equal(t, 8082, second.Port)
+		require.Equal(t, models.StringSlice{"gost"}, second.Protocols)
+	})
+}
+
 // TestGetNodeByID 测试根据ID获取节点
 func TestGetNodeByID(t *testing.T) {
 	db := setupTestDB(t)

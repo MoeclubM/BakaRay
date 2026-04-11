@@ -56,6 +56,31 @@ func (s *NodeService) CreateNode(name, host string, port int, secret string, gro
 	return node, nil
 }
 
+// RegisterNode 自动注册节点。相同名称的节点重复注册时复用原 ID，并刷新地址、端口和密钥。
+func (s *NodeService) RegisterNode(name, host string, port int, secret string) (*models.Node, error) {
+	var node models.Node
+	if err := s.db.Where("name = ?", name).First(&node).Error; err == nil {
+		updates := map[string]interface{}{
+			"host":      host,
+			"port":      port,
+			"secret":    secret,
+			"protocols": NormalizeNodeProtocols([]string{"gost"}),
+		}
+		if err := s.db.Model(&models.Node{}).Where("id = ?", node.ID).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+		node.Host = host
+		node.Port = port
+		node.Secret = secret
+		node.Protocols = NormalizeNodeProtocols([]string{"gost"})
+		return &node, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	return s.CreateNode(name, host, port, secret, 0, []string{"gost"}, 1, "")
+}
+
 // GetNodeByID 根据ID获取节点
 func (s *NodeService) GetNodeByID(id uint) (*models.Node, error) {
 	var node models.Node

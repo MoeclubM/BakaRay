@@ -17,17 +17,17 @@ import (
 
 // NodeHandler 节点处理器
 type NodeHandler struct {
-	nodeService *services.NodeService
-	ruleService *services.RuleService
-	userService *services.UserService
+	nodeService       *services.NodeService
+	ruleService       *services.RuleService
+	siteConfigService *services.SiteConfigService
 }
 
 // NewNodeHandler 创建节点处理器
-func NewNodeHandler(nodeService *services.NodeService, ruleService *services.RuleService, userService *services.UserService) *NodeHandler {
+func NewNodeHandler(nodeService *services.NodeService, ruleService *services.RuleService, siteConfigService *services.SiteConfigService) *NodeHandler {
 	return &NodeHandler{
-		nodeService: nodeService,
-		ruleService: ruleService,
-		userService: userService,
+		nodeService:       nodeService,
+		ruleService:       ruleService,
+		siteConfigService: siteConfigService,
 	}
 }
 
@@ -106,6 +106,82 @@ type NodeHeartbeatRequest struct {
 	Secret       string            `json:"secret" binding:"required"`
 	Probe        *models.ProbeData `json:"probe"`
 	TrafficStats map[string]int64  `json:"traffic_stats"`
+}
+
+type NodeRegisterRequest struct {
+	Name   string `json:"name"`
+	Secret string `json:"secret" binding:"required"`
+	Port   int    `json:"port"`
+}
+
+// NodeRegister 节点自动注册
+func (h *NodeHandler) NodeRegister(c *gin.Context) {
+	requestID := c.GetString("request_id")
+	log := logger.Log.With("request_id", requestID, "component", "node")
+
+	if h.siteConfigService == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "站点配置服务未初始化"})
+		return
+	}
+
+	var req NodeRegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		logger.Warn("NodeRegister: invalid request", "error", err, "request_id", requestID)
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误"})
+		return
+	}
+
+	site, err := h.siteConfigService.GetOrCreate()
+	if err != nil {
+		logger.Error("NodeRegister: failed to load site config", err, "request_id", requestID)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取站点配置失败"})
+		return
+	}
+	if req.Secret != site.NodeSecret {
+		logger.Warn("NodeRegister: invalid node secret", "request_id", requestID)
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "无效的节点密钥"})
+		return
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		replacer := strings.NewReplacer(".", "-", ":", "-")
+		name = "node-" + replacer.Replace(c.ClientIP())
+	}
+
+	port := req.Port
+	if port <= 0 {
+		port = 8081
+	}
+	if port > 65535 {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口范围无效"})
+		return
+	}
+
+	host := strings.TrimSpace(c.ClientIP())
+	if host == "" {
+		host = "127.0.0.1"
+	}
+
+	node, err := h.nodeService.RegisterNode(name, host, port, req.Secret)
+	if err != nil {
+		logger.Error("NodeRegister: failed to register node", err, "name", name, "request_id", requestID)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "注册节点失败"})
+		return
+	}
+
+	log.Info("NodeRegister success", "node_id", node.ID, "name", node.Name, "host", node.Host, "port", node.Port)
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"data": gin.H{
+			"id":      node.ID,
+			"node_id": node.ID,
+			"name":    node.Name,
+			"host":    node.Host,
+			"port":    node.Port,
+		},
+	})
 }
 
 // NodeHeartbeat 节点心跳

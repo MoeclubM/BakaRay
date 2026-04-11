@@ -68,22 +68,22 @@
       </v-card-text>
     </v-card>
 
-    <!-- 一键配置链接 -->
+    <!-- 节点安装命令 -->
     <v-card class="mt-4">
-      <v-card-title>节点配置模板</v-card-title>
+      <v-card-title>节点安装命令</v-card-title>
       <v-card-text>
         <v-alert type="info" variant="tonal" class="mb-4">
-          将以下配置发送给节点管理员（需要将 node_id 替换为对应节点 ID）。
+          将以下命令发送给节点管理员。脚本会自动注册节点并写入 node_id。
         </v-alert>
 
         <v-textarea
-          :model-value="nodeConfigYaml"
-          label="config.yaml"
+          :model-value="nodeInstallCommand"
+          label="install.sh"
           readonly
           auto-grow
-          rows="10"
+          rows="4"
           append-inner-icon="mdi-content-copy"
-          @click:append-inner="copyNodeConfigYaml"
+          @click:append-inner="copyNodeInstallCommand"
         />
       </v-card-text>
     </v-card>
@@ -115,18 +115,17 @@ const panelURL = computed(() => {
   return `https://${raw}`
 })
 
-const nodeConfigYaml = computed(() => {
+const nodeInstallCommand = computed(() => {
   const secret = form.value.node_secret || ''
-  const reportInterval = Number(form.value.node_report_interval) || 30
-  return `# BakaRay-Node 配置文件\npanel:\n  url: \"${panelURL.value}\"\n  node_id: 1\n  secret: \"${secret}\"\n\nnode:\n  report_interval: ${reportInterval}\n  probe_interval: 5\n  http_port: 8081\n  listen_ports:\n    - 8080\n    - 8090\n    - 8100\n\nlogger:\n  level: \"info\"\n  output: \"stdout\"\n`
+  return `sudo bash <(curl -fsSL https://raw.githubusercontent.com/MoeclubM/BakaRay-Node/main/install.sh) "${panelURL.value}" "${secret}"`
 })
 
-async function copyNodeConfigYaml() {
+async function copyNodeInstallCommand() {
   try {
-    await navigator.clipboard.writeText(nodeConfigYaml.value)
-    showSnackbar('已复制 config.yaml', 'success')
+    await navigator.clipboard.writeText(nodeInstallCommand.value)
+    showSnackbar('已复制节点安装命令', 'success')
   } catch (error) {
-    console.error('Failed to copy config yaml:', error)
+    console.error('Failed to copy node install command:', error)
     showSnackbar('复制失败', 'error')
   }
 }

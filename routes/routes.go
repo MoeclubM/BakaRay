@@ -80,6 +80,7 @@ func Setup(
 		// 节点通信接口（不需要用户认证，使用节点密钥验证）
 		nodeAPI := api.Group("/node")
 		{
+			nodeAPI.POST("/register", nodeHandler.NodeRegister)
 			nodeAPI.POST("/heartbeat", nodeHandler.NodeHeartbeat)
 			nodeAPI.GET("/config", nodeHandler.NodeConfig)
 			nodeAPI.POST("/config", nodeHandler.NodeConfig)

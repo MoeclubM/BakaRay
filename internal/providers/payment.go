@@ -159,14 +159,13 @@ func (p *EpayProvider) generateSign(params map[string]string) string {
 	}
 	sort.Strings(keys)
 
-	var signStr strings.Builder
+	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
-		signStr.WriteString(k + "=" + params[k] + "&")
+		parts = append(parts, k+"="+params[k])
 	}
-	signStr.WriteString("key=" + p.MerchantKey)
 
 	// MD5签名
-	hash := md5.Sum([]byte(signStr.String()))
+	hash := md5.Sum([]byte(strings.Join(parts, "&") + p.MerchantKey))
 	return hex.EncodeToString(hash[:])
 }
 
@@ -189,7 +188,7 @@ func (p *EpayProvider) verifySign(params map[string]string, expectedSign string)
 		params["sign_type"] = originalSignType
 	}
 
-	return computedSign == expectedSign
+	return strings.EqualFold(computedSign, expectedSign)
 }
 
 // buildQueryString 构建查询字符串

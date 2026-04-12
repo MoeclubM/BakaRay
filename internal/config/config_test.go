@@ -52,8 +52,8 @@ func TestLoad(t *testing.T) {
 	if cfg.Database.Username != "root" {
 		t.Errorf("Database.Username = %v, want root", cfg.Database.Username)
 	}
-	if cfg.Site.NodeReportInterval != 30 {
-		t.Errorf("Site.NodeReportInterval = %v, want 30", cfg.Site.NodeReportInterval)
+	if cfg.Site.NodeReportInterval != 10 {
+		t.Errorf("Site.NodeReportInterval = %v, want 10", cfg.Site.NodeReportInterval)
 	}
 	if cfg.JWT.Expiration != 86400 {
 		t.Errorf("JWT.Expiration = %v, want 86400", cfg.JWT.Expiration)

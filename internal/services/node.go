@@ -202,6 +202,40 @@ func (s *NodeService) GetProbeData(nodeID uint) (*models.ProbeData, error) {
 	return &probe, nil
 }
 
+// SaveDiagnostics 保存节点诊断到 Redis
+func (s *NodeService) SaveDiagnostics(nodeID uint, diagnostics []models.NodeDiagnostic) error {
+	if s.redis == nil {
+		return nil
+	}
+	data, err := json.Marshal(diagnostics)
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	key := fmt.Sprintf("node_diagnostics:%d", nodeID)
+	return s.redis.Set(ctx, key, data, 5*time.Minute).Err()
+}
+
+// GetDiagnostics 从 Redis 获取节点诊断
+func (s *NodeService) GetDiagnostics(nodeID uint) ([]models.NodeDiagnostic, error) {
+	if s.redis == nil {
+		return nil, nil
+	}
+	ctx := context.Background()
+	key := fmt.Sprintf("node_diagnostics:%d", nodeID)
+	data, err := s.redis.Get(ctx, key).Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	var diagnostics []models.NodeDiagnostic
+	if err := json.Unmarshal(data, &diagnostics); err != nil {
+		return nil, err
+	}
+	return diagnostics, nil
+}
+
 // ComputeTrafficDeltas computes per-rule traffic deltas based on cumulative counters reported by the node.
 // Expected keys: rule_{id}_in / rule_{id}_out.
 func (s *NodeService) ComputeTrafficDeltas(nodeID uint, stats map[string]int64) (map[uint]TrafficDelta, error) {

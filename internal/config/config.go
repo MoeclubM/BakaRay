@@ -88,7 +88,7 @@ func Load() (*Config, error) {
 		Name:               "BakaRay",
 		Domain:             "http://localhost:8080",
 		NodeSecret:         "change-this-secret-in-production",
-		NodeReportInterval: 30,
+		NodeReportInterval: 10,
 	}
 	cfg.JWT = JWTConfig{
 		Secret:     "change-this-secret-in-production",

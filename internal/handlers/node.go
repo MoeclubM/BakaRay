@@ -102,10 +102,11 @@ func (h *NodeHandler) GetNode(c *gin.Context) {
 
 // NodeHeartbeatRequest 节点心跳请求
 type NodeHeartbeatRequest struct {
-	NodeID       uint              `json:"node_id" binding:"required"`
-	Secret       string            `json:"secret" binding:"required"`
-	Probe        *models.ProbeData `json:"probe"`
-	TrafficStats map[string]int64  `json:"traffic_stats"`
+	NodeID       uint                    `json:"node_id" binding:"required"`
+	Secret       string                  `json:"secret" binding:"required"`
+	Probe        *models.ProbeData       `json:"probe"`
+	TrafficStats map[string]int64        `json:"traffic_stats"`
+	Diagnostics  []models.NodeDiagnostic `json:"diagnostics"`
 }
 
 type NodeRegisterRequest struct {
@@ -199,6 +200,9 @@ func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 	if req.Probe != nil {
 		h.nodeService.SaveProbeData(req.NodeID, req.Probe)
 	}
+	if req.Diagnostics != nil {
+		h.nodeService.SaveDiagnostics(req.NodeID, req.Diagnostics)
+	}
 
 	if len(req.TrafficStats) > 0 {
 		deltas, err := h.nodeService.ComputeTrafficDeltas(req.NodeID, req.TrafficStats)
@@ -269,6 +273,12 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 	}
 
 	rules, _ := h.nodeService.ListRulesByNode(req.NodeID, true)
+	site, err := h.siteConfigService.GetOrCreate()
+	if err != nil {
+		logger.Error("NodeConfig: load site config failed", err, "node_id", req.NodeID, "request_id", requestID)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取站点配置失败"})
+		return
+	}
 
 	type NodeTarget struct {
 		Host    string `json:"host"`
@@ -346,8 +356,9 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"rules":   string(rulesJSON),
-			"version": 1,
+			"rules":           string(rulesJSON),
+			"report_interval": site.NodeReportInterval,
+			"version":         1,
 		},
 	})
 }

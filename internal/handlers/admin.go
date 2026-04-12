@@ -139,14 +139,16 @@ func (h *AdminHandler) GetAdminNodeDetail(c *gin.Context) {
 	}
 
 	probe, _ := h.nodeService.GetProbeData(uint(id))
+	diagnostics, _ := h.nodeService.GetDiagnostics(uint(id))
 
 	log.Info("GetAdminNodeDetail success", "node_id", id, "node_name", node.Name)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"node":  node,
-			"probe": probe,
+			"node":        node,
+			"probe":       probe,
+			"diagnostics": diagnostics,
 		},
 	})
 }
@@ -436,13 +438,25 @@ func (h *AdminHandler) GetAdminNodes(c *gin.Context) {
 	log.Debug("GetAdminNodes request", "page", page, "page_size", pageSize, "status", status)
 
 	nodes, total := h.nodeService.ListNodes(page, pageSize, status)
+	type AdminNodeListItem struct {
+		models.Node
+		Diagnostics []models.NodeDiagnostic `json:"diagnostics"`
+	}
+	items := make([]AdminNodeListItem, 0, len(nodes))
+	for _, node := range nodes {
+		diagnostics, _ := h.nodeService.GetDiagnostics(node.ID)
+		items = append(items, AdminNodeListItem{
+			Node:        node,
+			Diagnostics: diagnostics,
+		})
+	}
 
-	log.Info("GetAdminNodes success", "node_count", len(nodes), "total", total)
+	log.Info("GetAdminNodes success", "node_count", len(items), "total", total)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"list":  nodes,
+			"list":  items,
 			"total": total,
 			"page":  page,
 		},

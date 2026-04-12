@@ -77,11 +77,24 @@
           </v-chip>
         </template>
 
+        <template v-slot:item.diagnostics="{ item }">
+          <v-chip
+            :color="hasFailedDiagnostics(item) ? 'error' : 'success'"
+            size="small"
+            variant="tonal"
+          >
+            {{ hasFailedDiagnostics(item) ? `异常 ${getFailedDiagnostics(item).length}` : '正常' }}
+          </v-chip>
+        </template>
+
         <template v-slot:item.last_seen="{ item }">
           {{ formatDate(item.last_seen) }}
         </template>
 
         <template v-slot:item.actions="{ item }">
+          <v-btn icon size="small" variant="text" color="warning" @click="openDiagnostics(item)">
+            <v-icon>mdi-stethoscope</v-icon>
+          </v-btn>
           <v-btn icon size="small" variant="text" @click="editNode(item)">
             <v-icon>mdi-pencil</v-icon>
           </v-btn>
@@ -170,6 +183,52 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <v-dialog v-model="showDiagnosticsDialog" max-width="760">
+      <v-card>
+        <v-card-title class="d-flex align-center">
+          <span>节点诊断</span>
+          <v-spacer />
+          <span class="text-body-2 text-medium-emphasis">{{ diagnosticNode?.name || '' }}</span>
+        </v-card-title>
+        <v-card-text>
+          <div v-if="loadingDiagnostics" class="py-8 text-center">
+            <v-progress-circular indeterminate color="primary" />
+          </div>
+          <div v-else-if="diagnostics.length === 0" class="py-8 text-center text-medium-emphasis">
+            当前没有诊断异常，规则启动状态正常。
+          </div>
+          <v-table v-else density="comfortable">
+            <thead>
+              <tr>
+                <th>规则</th>
+                <th>监听端口</th>
+                <th>状态</th>
+                <th>原因</th>
+                <th>更新时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in diagnostics" :key="item.rule_id">
+                <td>{{ item.rule_name || `规则 #${item.rule_id}` }}</td>
+                <td>{{ item.listen_port || '-' }}</td>
+                <td>
+                  <v-chip :color="item.status === 'failed' ? 'error' : 'success'" size="small" variant="tonal">
+                    {{ item.status === 'failed' ? '失败' : '运行中' }}
+                  </v-chip>
+                </td>
+                <td class="text-body-2">{{ item.message || '运行正常' }}</td>
+                <td>{{ formatDiagnosticTime(item.updated_at) }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn @click="showDiagnosticsDialog = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -185,11 +244,15 @@ const nodes = ref([])
 const loading = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
+const loadingDiagnostics = ref(false)
 
 const showCreateDialog = ref(false)
 const showDeleteDialog = ref(false)
+const showDiagnosticsDialog = ref(false)
 const editingNode = ref(null)
 const deletingNode = ref(null)
+const diagnosticNode = ref(null)
+const diagnostics = ref([])
 const formRef = ref(null)
 
 const form = ref({
@@ -209,14 +272,28 @@ const headers = [
   { title: '名称', key: 'name' },
   { title: '接入地址', key: 'host' },
   { title: '协议', key: 'protocols' },
+  { title: '诊断', key: 'diagnostics', width: 120 },
   { title: '地区', key: 'region' },
   { title: '最后活跃', key: 'last_seen' },
-  { title: '操作', key: 'actions', width: 120 }
+  { title: '操作', key: 'actions', width: 160 }
 ]
 
 function formatDate(date) {
   if (!date) return '从未'
   return dayjs(date).fromNow()
+}
+
+function formatDiagnosticTime(timestamp) {
+  if (!timestamp) return '-'
+  return dayjs.unix(timestamp).format('YYYY-MM-DD HH:mm:ss')
+}
+
+function getFailedDiagnostics(node) {
+  return Array.isArray(node?.diagnostics) ? node.diagnostics.filter((item) => item.status === 'failed') : []
+}
+
+function hasFailedDiagnostics(node) {
+  return getFailedDiagnostics(node).length > 0
 }
 
 function editNode(node) {
@@ -234,6 +311,22 @@ function editNode(node) {
 function deleteNode(node) {
   deletingNode.value = node
   showDeleteDialog.value = true
+}
+
+async function openDiagnostics(node) {
+  diagnosticNode.value = node
+  diagnostics.value = []
+  showDiagnosticsDialog.value = true
+  loadingDiagnostics.value = true
+  try {
+    const response = await adminAPI.nodes.get(node.id)
+    diagnostics.value = response.data?.diagnostics || []
+  } catch (error) {
+    console.error('Failed to load diagnostics:', error)
+    showSnackbar(error.response?.data?.message || error.message || '加载节点诊断失败', 'error')
+  } finally {
+    loadingDiagnostics.value = false
+  }
 }
 
 function closeDialog() {

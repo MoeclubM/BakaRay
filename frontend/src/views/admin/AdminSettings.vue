@@ -47,7 +47,7 @@
             type="number"
             min="10"
             max="300"
-            hint="建议值：30-60秒"
+            hint="建议值：10-60 秒"
             persistent-hint
             class="mb-4"
           />
@@ -101,7 +101,7 @@ const form = ref({
   site_name: 'BakaRay',
   site_domain: '',
   node_secret: '',
-  node_report_interval: 30
+  node_report_interval: 10
 })
 
 const panelURL = computed(() => {

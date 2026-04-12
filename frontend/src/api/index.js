@@ -75,6 +75,7 @@ export const adminAPI = {
   },
   nodes: {
     list: (params) => client.get('/admin/nodes', { params }).then(normalizeListResponse),
+    get: (id) => client.get(`/admin/nodes/${id}`),
     update: (id, data) => client.put(`/admin/nodes/${id}`, data),
     delete: (id) => client.delete(`/admin/nodes/${id}`)
   },

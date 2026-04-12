@@ -165,7 +165,7 @@ type SiteConfig struct {
 	SiteName           string    `json:"site_name" gorm:"size:128;not null"`
 	SiteDomain         string    `json:"site_domain" gorm:"size:255"`
 	NodeSecret         string    `json:"node_secret" gorm:"size:128"`
-	NodeReportInterval int       `json:"node_report_interval" gorm:"default:30"`
+	NodeReportInterval int       `json:"node_report_interval" gorm:"default:10"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
 }
@@ -187,6 +187,16 @@ type ProbeData struct {
 	CPU       CPUInfo       `json:"cpu"`
 	Memory    MemoryInfo    `json:"memory"`
 	Network   []NetworkInfo `json:"network"`
+}
+
+// NodeDiagnostic 节点规则诊断信息（不存数据库，仅 Redis 缓存）
+type NodeDiagnostic struct {
+	RuleID     uint   `json:"rule_id"`
+	RuleName   string `json:"rule_name"`
+	ListenPort int    `json:"listen_port"`
+	Status     string `json:"status"`
+	Message    string `json:"message"`
+	UpdatedAt  int64  `json:"updated_at"`
 }
 
 // CPUInfo CPU 信息

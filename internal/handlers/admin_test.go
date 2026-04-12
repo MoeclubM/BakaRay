@@ -45,6 +45,8 @@ type NodeServiceInterface interface {
 	UpdateNodeStatus(id uint, status string) error
 	GetProbeData(nodeID uint) (*models.ProbeData, error)
 	SaveProbeData(nodeID uint, probe *models.ProbeData) error
+	GetDiagnostics(nodeID uint) ([]models.NodeDiagnostic, error)
+	SaveDiagnostics(nodeID uint, diagnostics []models.NodeDiagnostic) error
 	ComputeTrafficDeltas(nodeID uint, stats map[string]int64) (map[uint]services.TrafficDelta, error)
 	GetAllowedGroups(nodeID uint) ([]uint, error)
 	SetAllowedGroups(nodeID uint, groupIDs []uint) error
@@ -182,6 +184,7 @@ func (m *MockUserService) GetJWTExpiration() int {
 
 type MockNodeService struct {
 	nodes         []models.Node
+	diagnostics   map[uint][]models.NodeDiagnostic
 	count         int64
 	createErr     error
 	getErr        error
@@ -250,9 +253,24 @@ func (m *MockNodeService) DeleteNode(id uint) error {
 	return nil
 }
 
-func (m *MockNodeService) UpdateNodeStatus(id uint, status string) error            { return nil }
-func (m *MockNodeService) GetProbeData(nodeID uint) (*models.ProbeData, error)      { return nil, nil }
-func (m *MockNodeService) SaveProbeData(nodeID uint, probe *models.ProbeData) error { return nil }
+func (m *MockNodeService) UpdateNodeStatus(id uint, status string) error       { return nil }
+func (m *MockNodeService) GetProbeData(nodeID uint) (*models.ProbeData, error) { return nil, nil }
+func (m *MockNodeService) SaveProbeData(nodeID uint, probe *models.ProbeData) error {
+	return nil
+}
+func (m *MockNodeService) GetDiagnostics(nodeID uint) ([]models.NodeDiagnostic, error) {
+	if m.diagnostics == nil {
+		return nil, nil
+	}
+	return m.diagnostics[nodeID], nil
+}
+func (m *MockNodeService) SaveDiagnostics(nodeID uint, diagnostics []models.NodeDiagnostic) error {
+	if m.diagnostics == nil {
+		m.diagnostics = make(map[uint][]models.NodeDiagnostic)
+	}
+	m.diagnostics[nodeID] = diagnostics
+	return nil
+}
 func (m *MockNodeService) ComputeTrafficDeltas(nodeID uint, stats map[string]int64) (map[uint]services.TrafficDelta, error) {
 	return make(map[uint]services.TrafficDelta), nil
 }
@@ -371,7 +389,7 @@ func (m *MockSiteConfigService) GetOrCreate() (*models.SiteConfig, error) {
 			SiteName:           "BakaRay",
 			SiteDomain:         "localhost",
 			NodeSecret:         "secret",
-			NodeReportInterval: 30,
+			NodeReportInterval: 10,
 		}
 	}
 	return m.config, nil
@@ -721,11 +739,23 @@ func (h *TestAdminHandler) GetAdminNodes(c *gin.Context) {
 	status := c.Query("status")
 
 	nodes, total := h.nodeService.ListNodes(page, pageSize, status)
+	type adminNodeListItem struct {
+		models.Node
+		Diagnostics []models.NodeDiagnostic `json:"diagnostics"`
+	}
+	items := make([]adminNodeListItem, 0, len(nodes))
+	for _, node := range nodes {
+		diagnostics, _ := h.nodeService.GetDiagnostics(node.ID)
+		items = append(items, adminNodeListItem{
+			Node:        node,
+			Diagnostics: diagnostics,
+		})
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"list":  nodes,
+			"list":  items,
 			"total": total,
 			"page":  page,
 		},
@@ -1110,12 +1140,14 @@ func (h *TestAdminHandler) GetAdminNodeDetail(c *gin.Context) {
 	}
 
 	probe, _ := h.nodeService.GetProbeData(uint(id))
+	diagnostics, _ := h.nodeService.GetDiagnostics(uint(id))
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"node":  node,
-			"probe": probe,
+			"node":        node,
+			"probe":       probe,
+			"diagnostics": diagnostics,
 		},
 	})
 }

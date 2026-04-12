@@ -39,7 +39,7 @@ func (s *SiteConfigService) GetOrCreate() (*models.SiteConfig, error) {
 		site.SiteName = "BakaRay"
 	}
 	if site.NodeReportInterval <= 0 {
-		site.NodeReportInterval = 30
+		site.NodeReportInterval = 10
 	}
 
 	if err := s.db.Create(&site).Error; err != nil {

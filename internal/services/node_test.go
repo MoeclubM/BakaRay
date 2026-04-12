@@ -377,6 +377,49 @@ func TestGetProbeData(t *testing.T) {
 	})
 }
 
+func TestDiagnosticsCache(t *testing.T) {
+	redisClient := setupTestRedis(t)
+	if redisClient == nil {
+		t.Skip("Redis not available")
+	}
+	defer cleanupTestRedis(redisClient)
+
+	db := setupTestDB(t)
+	defer cleanupTestDB(db)
+
+	service := NewNodeService(db, redisClient)
+	testNode := createTestNodeFull(t, db, "DiagnosticNode", "diagnostic.test.com", 8080, "online")
+
+	diagnostics := []models.NodeDiagnostic{
+		{
+			RuleID:     1,
+			RuleName:   "rule-1",
+			ListenPort: 8500,
+			Status:     "failed",
+			Message:    "listen tcp :8500: bind: address already in use",
+			UpdatedAt:  time.Now().Unix(),
+		},
+	}
+
+	t.Run("成功保存并读取节点诊断", func(t *testing.T) {
+		err := service.SaveDiagnostics(testNode.ID, diagnostics)
+		require.NoError(t, err)
+
+		savedDiagnostics, err := service.GetDiagnostics(testNode.ID)
+		require.NoError(t, err)
+		require.Len(t, savedDiagnostics, 1)
+		require.Equal(t, diagnostics[0].RuleID, savedDiagnostics[0].RuleID)
+		require.Equal(t, diagnostics[0].Message, savedDiagnostics[0].Message)
+	})
+
+	t.Run("Redis为空时返回nil", func(t *testing.T) {
+		serviceNoRedis := NewNodeService(db, nil)
+		savedDiagnostics, err := serviceNoRedis.GetDiagnostics(testNode.ID)
+		require.NoError(t, err)
+		require.Nil(t, savedDiagnostics)
+	})
+}
+
 // TestDeleteNode 测试节点删除
 func TestDeleteNode(t *testing.T) {
 	db := setupTestDB(t)

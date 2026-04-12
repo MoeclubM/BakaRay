@@ -118,7 +118,6 @@ func Setup(
 				adminNodes.GET("/:id", adminHandler.GetAdminNodeDetail)
 				adminNodes.PUT("/:id", adminHandler.UpdateNode)
 				adminNodes.DELETE("/:id", adminHandler.DeleteNode)
-				adminNodes.POST("/:id/reload", adminHandler.ReloadNode)
 			}
 
 			// 用户组

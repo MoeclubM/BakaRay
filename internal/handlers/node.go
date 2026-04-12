@@ -111,7 +111,6 @@ type NodeHeartbeatRequest struct {
 type NodeRegisterRequest struct {
 	Name   string `json:"name"`
 	Secret string `json:"secret" binding:"required"`
-	Port   int    `json:"port"`
 }
 
 // NodeRegister 节点自动注册
@@ -149,28 +148,19 @@ func (h *NodeHandler) NodeRegister(c *gin.Context) {
 		name = "node-" + replacer.Replace(c.ClientIP())
 	}
 
-	port := req.Port
-	if port <= 0 {
-		port = 8081
-	}
-	if port > 65535 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "端口范围无效"})
-		return
-	}
-
 	host := strings.TrimSpace(c.ClientIP())
 	if host == "" {
 		host = "127.0.0.1"
 	}
 
-	node, err := h.nodeService.RegisterNode(name, host, port, req.Secret)
+	node, err := h.nodeService.RegisterNode(name, host, 0, req.Secret)
 	if err != nil {
 		logger.Error("NodeRegister: failed to register node", err, "name", name, "request_id", requestID)
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "注册节点失败"})
 		return
 	}
 
-	log.Info("NodeRegister success", "node_id", node.ID, "name", node.Name, "host", node.Host, "port", node.Port)
+	log.Info("NodeRegister success", "node_id", node.ID, "name", node.Name, "host", node.Host)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
@@ -179,7 +169,6 @@ func (h *NodeHandler) NodeRegister(c *gin.Context) {
 			"node_id": node.ID,
 			"name":    node.Name,
 			"host":    node.Host,
-			"port":    node.Port,
 		},
 	})
 }
@@ -229,7 +218,6 @@ func (h *NodeHandler) NodeHeartbeat(c *gin.Context) {
 				if disabled {
 					disabledCount++
 					logger.Warn("NodeHeartbeat: rule disabled due to traffic limit", "rule_id", ruleID, "node_id", req.NodeID, "request_id", requestID)
-					triggerNodeReloadAsync(h.nodeService, requestID, req.NodeID)
 				}
 				_ = h.ruleService.CreateTrafficLog(&models.TrafficLog{
 					RuleID:    ruleID,

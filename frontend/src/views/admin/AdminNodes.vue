@@ -49,7 +49,7 @@
       variant="tonal"
       class="mb-4"
       icon="mdi-information-outline"
-      text="节点会在安装脚本首次执行后自动注册。此页面仅保留编辑、热更新和删除。"
+      text="节点会在安装脚本首次执行后自动注册，并按上报周期主动向面板拉取最新配置。"
     />
 
     <v-card>
@@ -72,10 +72,7 @@
         </template>
 
         <template v-slot:item.host="{ item }">
-          <div class="d-flex flex-column">
-            <code>{{ item.host }}:{{ item.port }}</code>
-            <span class="text-caption text-medium-emphasis">HTTP 管理端口</span>
-          </div>
+          <code>{{ item.host }}</code>
         </template>
 
         <template v-slot:item.region="{ item }">
@@ -95,9 +92,6 @@
         <template v-slot:item.actions="{ item }">
           <v-btn icon size="small" variant="text" @click="editNode(item)">
             <v-icon>mdi-pencil</v-icon>
-          </v-btn>
-          <v-btn icon size="small" variant="text" color="info" @click="reloadNode(item)">
-            <v-icon>mdi-refresh</v-icon>
           </v-btn>
           <v-btn icon size="small" variant="text" color="error" @click="deleteNode(item)">
             <v-icon>mdi-delete</v-icon>
@@ -127,21 +121,11 @@
             />
 
             <v-row>
-              <v-col cols="8">
+              <v-col cols="12">
                 <v-text-field
                   v-model="form.host"
                   label="节点地址"
                   :rules="[v => !!v || '请输入节点地址']"
-                />
-              </v-col>
-              <v-col cols="4">
-                <v-text-field
-                  v-model.number="form.port"
-                  label="管理端口"
-                  type="number"
-                  :rules="[v => v > 0 || '请输入有效端口']"
-                  hint="节点端 HTTP 管理端口（默认 8081）"
-                  persistent-hint
                 />
               </v-col>
             </v-row>
@@ -220,7 +204,6 @@ const formRef = ref(null)
 const form = ref({
   name: '',
   host: '',
-  port: 8081,
   protocols: ['gost'],
   region: '',
   multiplier: 1.0
@@ -237,7 +220,7 @@ const headers = [
   { title: '协议', key: 'protocols' },
   { title: '地区', key: 'region' },
   { title: '最后活跃', key: 'last_seen' },
-  { title: '操作', key: 'actions', width: 150 }
+  { title: '操作', key: 'actions', width: 120 }
 ]
 
 function formatDate(date) {
@@ -250,7 +233,6 @@ function editNode(node) {
   form.value = {
     name: node.name,
     host: node.host,
-    port: node.port,
     protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost'],
     region: node.region || '',
     multiplier: node.multiplier || 1
@@ -269,7 +251,6 @@ function closeDialog() {
   form.value = {
     name: '',
     host: '',
-    port: 8081,
     protocols: ['gost'],
     region: '',
     multiplier: 1.0
@@ -311,17 +292,6 @@ async function confirmDelete() {
     showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
   } finally {
     deleting.value = false
-  }
-}
-
-async function reloadNode(node) {
-  try {
-    await adminAPI.nodes.reload(node.id)
-    showSnackbar('热更新指令已下发', 'success')
-    loadNodes()
-  } catch (error) {
-    console.error('Failed to reload node:', error)
-    showSnackbar(error.response?.data?.message || error.message || '热更新失败', 'error')
   }
 }
 

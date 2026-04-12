@@ -474,37 +474,6 @@ func (h *AdminHandler) CreateNode(c *gin.Context) {
 	})
 }
 
-// ReloadNode 触发节点热更新
-func (h *AdminHandler) ReloadNode(c *gin.Context) {
-	requestID := c.GetString("request_id")
-	userID := middleware.GetUserID(c)
-	log := logger.WithContext(requestID, userID, "admin")
-
-	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
-
-	log.Debug("ReloadNode request", "node_id", id)
-
-	node, err := h.nodeService.GetNodeByID(uint(id))
-	if err != nil {
-		logger.Warn("ReloadNode: node not found", "node_id", id, "request_id", requestID)
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "节点不存在"})
-		return
-	}
-
-	if err := reloadNode(node); err != nil {
-		logger.Error("ReloadNode: request failed", err, "node_id", id, "request_id", requestID)
-		c.JSON(http.StatusBadGateway, gin.H{"code": 502, "message": "下发失败：节点不可达"})
-		return
-	}
-
-	log.Info("ReloadNode success", "node_id", id)
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "热更新指令已下发",
-	})
-}
-
 // --- 用户管理 ---
 
 // GetAdminUsers 获取用户列表

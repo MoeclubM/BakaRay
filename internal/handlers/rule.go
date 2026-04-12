@@ -175,8 +175,6 @@ func (h *RuleHandler) CreateRule(c *gin.Context) {
 	}
 	_ = h.ruleService.CreateGostRule(gostRule)
 
-	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID)
-
 	log.Info("CreateRule success", "rule_id", rule.ID, "rule_name", rule.Name)
 
 	c.JSON(http.StatusOK, gin.H{
@@ -253,7 +251,6 @@ func (h *RuleHandler) DeleteRule(c *gin.Context) {
 	}
 	_ = h.ruleService.DeleteTargetsByRuleID(uint(id))
 	_ = h.ruleService.DeleteGostRule(uint(id))
-	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID)
 
 	log.Info("DeleteRule success", "rule_id", id)
 
@@ -386,8 +383,6 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新协议配置失败"})
 		return
 	}
-
-	triggerNodeReloadAsync(h.nodeService, requestID, rule.NodeID, nodeID)
 
 	log.Info("UpdateRule success", "rule_id", id, "rule_name", rule.Name)
 

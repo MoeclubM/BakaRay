@@ -92,16 +92,16 @@ type PaymentServiceInterface interface {
 // --- Mock Services ---
 
 type MockUserService struct {
-	users          []models.User
-	count          int64
-	createErr      error
-	getErr         error
-	updateErr      error
-	deleteErr      error
-	updateBalErr   error
-	listUsersFunc  func(page, pageSize int) ([]models.User, int64)
-	jwtSecret      string
-	jwtExp         int
+	users         []models.User
+	count         int64
+	createErr     error
+	getErr        error
+	updateErr     error
+	deleteErr     error
+	updateBalErr  error
+	listUsersFunc func(page, pageSize int) ([]models.User, int64)
+	jwtSecret     string
+	jwtExp        int
 }
 
 func (m *MockUserService) CreateUser(username, password string, groupID uint) (*models.User, error) {
@@ -195,16 +195,16 @@ func (m *MockNodeService) CreateNode(name, host string, port int, secret string,
 		return nil, m.createErr
 	}
 	node := &models.Node{
-		ID:           1,
-		Name:         name,
-		Host:         host,
-		Port:         port,
-		Secret:       secret,
-		NodeGroupID:  groupID,
-		Protocols:    protocols,
-		Multiplier:   multiplier,
-		Region:       region,
-		Status:       "offline",
+		ID:          1,
+		Name:        name,
+		Host:        host,
+		Port:        port,
+		Secret:      secret,
+		NodeGroupID: groupID,
+		Protocols:   protocols,
+		Multiplier:  multiplier,
+		Region:      region,
+		Status:      "offline",
 	}
 	m.nodes = append(m.nodes, *node)
 	return node, nil
@@ -250,13 +250,13 @@ func (m *MockNodeService) DeleteNode(id uint) error {
 	return nil
 }
 
-func (m *MockNodeService) UpdateNodeStatus(id uint, status string) error   { return nil }
-func (m *MockNodeService) GetProbeData(nodeID uint) (*models.ProbeData, error) { return nil, nil }
+func (m *MockNodeService) UpdateNodeStatus(id uint, status string) error            { return nil }
+func (m *MockNodeService) GetProbeData(nodeID uint) (*models.ProbeData, error)      { return nil, nil }
 func (m *MockNodeService) SaveProbeData(nodeID uint, probe *models.ProbeData) error { return nil }
 func (m *MockNodeService) ComputeTrafficDeltas(nodeID uint, stats map[string]int64) (map[uint]services.TrafficDelta, error) {
 	return make(map[uint]services.TrafficDelta), nil
 }
-func (m *MockNodeService) GetAllowedGroups(nodeID uint) ([]uint, error)      { return nil, nil }
+func (m *MockNodeService) GetAllowedGroups(nodeID uint) ([]uint, error)        { return nil, nil }
 func (m *MockNodeService) SetAllowedGroups(nodeID uint, groupIDs []uint) error { return nil }
 func (m *MockNodeService) ListRulesByNode(nodeID uint, enabledOnly bool) ([]models.ForwardingRule, error) {
 	return nil, nil
@@ -442,15 +442,21 @@ func (m *MockPaymentService) GetOrderStats() (int64, int64) {
 	return m.orderCount, m.totalRevenue
 }
 
-func (m *MockPaymentService) GetUserByID(userID uint) (*models.User, error)      { return nil, nil }
+func (m *MockPaymentService) GetUserByID(userID uint) (*models.User, error) { return nil, nil }
 func (m *MockPaymentService) CreateOrder(userID, packageID uint, amount int64, payType string) (*models.Order, error) {
 	return nil, nil
 }
-func (m *MockPaymentService) GetOrderByTradeNo(tradeNo string) (*models.Order, error) { return nil, nil }
-func (m *MockPaymentService) GetOrderByID(id uint) (*models.Order, error)           { return nil, nil }
-func (m *MockPaymentService) AddUserBalance(userID uint, amount int64) error        { return nil }
-func (m *MockPaymentService) CompleteOrder(tradeNo string, userID uint, traffic int64) error { return nil }
-func (m *MockPaymentService) ListOrders(userID uint, page, pageSize int) ([]models.Order, int64) { return nil, 0 }
+func (m *MockPaymentService) GetOrderByTradeNo(tradeNo string) (*models.Order, error) {
+	return nil, nil
+}
+func (m *MockPaymentService) GetOrderByID(id uint) (*models.Order, error)    { return nil, nil }
+func (m *MockPaymentService) AddUserBalance(userID uint, amount int64) error { return nil }
+func (m *MockPaymentService) CompleteOrder(tradeNo string, userID uint, traffic int64) error {
+	return nil
+}
+func (m *MockPaymentService) ListOrders(userID uint, page, pageSize int) ([]models.Order, int64) {
+	return nil, 0
+}
 
 // --- Test AdminHandler ---
 
@@ -801,26 +807,6 @@ func (h *TestAdminHandler) DeleteNode(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
-}
-
-func (h *TestAdminHandler) ReloadNode(c *gin.Context) {
-	if h.nodeService == nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "服务未初始化"})
-		return
-	}
-
-	id, _ := strconvParseUint(c.Param("id"), 10, 32)
-	node, err := h.nodeService.GetNodeByID(uint(id))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "节点不存在"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"code":    0,
-		"message": "热更新指令已下发",
-		"data":    gin.H{"url": "http://" + node.Host + ":" + itoa(node.Port) + "/reload"},
-	})
 }
 
 func (h *TestAdminHandler) GetAdminUsers(c *gin.Context) {
@@ -1727,14 +1713,14 @@ func TestCreateNode_Success(t *testing.T) {
 	router.POST("/admin/nodes", handler.CreateNode)
 
 	body := map[string]interface{}{
-		"name":         "New Node",
-		"host":         "newhost.com",
-		"port":         8080,
-		"secret":       "secret123",
+		"name":          "New Node",
+		"host":          "newhost.com",
+		"port":          8080,
+		"secret":        "secret123",
 		"node_group_id": 1,
-		"protocols":    []string{"gost"},
-		"multiplier":   1.0,
-		"region":       "CN",
+		"protocols":     []string{"gost"},
+		"multiplier":    1.0,
+		"region":        "CN",
 	}
 	req := createTestRequest(router, "POST", "/admin/nodes", body)
 	w := executeRequest(router, req)
@@ -1865,24 +1851,6 @@ func TestDeleteNode_ServiceError(t *testing.T) {
 	require.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
-func TestReloadNode_NodeNotFound(t *testing.T) {
-	handler := NewTestAdminHandler()
-	handler.nodeService = &MockNodeService{getErr: services.ErrNodeNotFound}
-
-	router := gin.New()
-	router.POST("/admin/nodes/:id/reload", handler.ReloadNode)
-
-	req := httptest.NewRequest("POST", "/admin/nodes/999/reload", nil)
-	w := executeRequest(router, req)
-
-	require.Equal(t, http.StatusNotFound, w.Code)
-
-	var resp map[string]interface{}
-	err := json.Unmarshal(w.Body.Bytes(), &resp)
-	require.NoError(t, err)
-	require.Equal(t, "节点不存在", resp["message"])
-}
-
 func TestGetAdminUsers_Success(t *testing.T) {
 	handler := NewTestAdminHandler()
 	handler.userService = &MockUserService{
@@ -1919,11 +1887,11 @@ func TestCreateUser_Success(t *testing.T) {
 	router.POST("/admin/users", handler.CreateUser)
 
 	body := map[string]interface{}{
-		"username":     "newuser",
-		"password":     "password123",
+		"username":      "newuser",
+		"password":      "password123",
 		"user_group_id": 1,
-		"balance":      100,
-		"is_admin":     false,
+		"balance":       100,
+		"is_admin":      false,
 	}
 	req := createTestRequest(router, "POST", "/admin/users", body)
 	w := executeRequest(router, req)
@@ -2104,7 +2072,7 @@ func TestGetAdminOrders_Success(t *testing.T) {
 func TestGetAdminOrders_WithStatusFilter(t *testing.T) {
 	handler := NewTestAdminHandler()
 	handler.paymentService = &MockPaymentService{
-		orders:    []models.Order{{ID: 1, TradeNo: "T001", Status: "success"}},
+		orders:     []models.Order{{ID: 1, TradeNo: "T001", Status: "success"}},
 		orderCount: 1,
 	}
 
@@ -2202,9 +2170,9 @@ func TestCreatePackage_Success(t *testing.T) {
 	router.POST("/admin/packages", handler.CreatePackage)
 
 	body := map[string]interface{}{
-		"name":         "New Package",
-		"traffic":      1000000,
-		"price":        10000,
+		"name":          "New Package",
+		"traffic":       1000000,
+		"price":         10000,
 		"user_group_id": 1,
 	}
 	req := createTestRequest(router, "POST", "/admin/packages", body)

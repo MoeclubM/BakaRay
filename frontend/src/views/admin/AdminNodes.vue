@@ -44,14 +44,6 @@
       </v-col>
     </v-row>
 
-    <v-alert
-      type="info"
-      variant="tonal"
-      class="mb-4"
-      icon="mdi-information-outline"
-      text="节点会在安装脚本首次执行后自动注册，并按上报周期主动向面板拉取最新配置。"
-    />
-
     <v-card>
       <v-data-table
         :headers="headers"
@@ -102,7 +94,6 @@
           <div class="text-center py-12">
             <v-icon size="64" color="grey">mdi-server-network-off</v-icon>
             <div class="text-h6 mt-4 text-grey">暂无节点</div>
-            <div class="text-body-2 mt-2 text-grey">节点会在安装脚本首次执行后自动注册</div>
           </div>
         </template>
       </v-data-table>

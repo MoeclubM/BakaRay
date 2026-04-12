@@ -72,10 +72,6 @@
     <v-card class="mt-4">
       <v-card-title>节点安装命令</v-card-title>
       <v-card-text>
-        <v-alert type="info" variant="tonal" class="mb-4">
-          将以下命令发送给节点管理员。脚本会自动注册节点并写入 node_id。
-        </v-alert>
-
         <v-textarea
           :model-value="nodeInstallCommand"
           label="install.sh"

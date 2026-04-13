@@ -193,11 +193,11 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
 			true,
 			exitNode.ID,
-			"ws",
+			"quic",
 			9444,
 			nil,
 			[]existingRuleConflict{
-				{ID: 3, Port: 9444, Enabled: true, Layer4: "tcp"},
+				{ID: 3, Port: 9444, Enabled: true, Layer4: "udp"},
 			},
 			0,
 		)

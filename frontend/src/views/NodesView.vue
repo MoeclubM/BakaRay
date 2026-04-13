@@ -21,8 +21,11 @@
             </v-icon>
             {{ node.name }}
             <v-spacer />
-            <v-chip :color="node.status === 'online' ? 'success' : 'error'" size="small">
-              {{ node.status === 'online' ? '在线' : '离线' }}
+            <v-chip
+              :color="node.status === 'online' ? 'success' : 'error'"
+              size="small"
+            >
+              {{ node.status === "online" ? "在线" : "离线" }}
             </v-chip>
           </v-card-title>
 
@@ -32,19 +35,27 @@
                 <template v-slot:prepend>
                   <v-icon>mdi-map-marker</v-icon>
                 </template>
-                <v-list-item-title>地区：{{ node.region || '未知' }}</v-list-item-title>
+                <v-list-item-title
+                  >地区：{{ node.region || "未知" }}</v-list-item-title
+                >
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
                   <v-icon>mdi-protocol</v-icon>
                 </template>
-                <v-list-item-title>协议：{{ (node.protocols || []).join(', ') }}</v-list-item-title>
+                <v-list-item-title
+                  >能力：{{
+                    formatProtocols(node.protocols)
+                  }}</v-list-item-title
+                >
               </v-list-item>
               <v-list-item>
                 <template v-slot:prepend>
                   <v-icon>mdi-clock-outline</v-icon>
                 </template>
-                <v-list-item-title>最后活跃：{{ formatDate(node.last_seen) }}</v-list-item-title>
+                <v-list-item-title
+                  >最后活跃：{{ formatDate(node.last_seen) }}</v-list-item-title
+                >
               </v-list-item>
             </v-list>
 
@@ -80,17 +91,29 @@
                       style="width: 140px"
                     >
                       <template v-slot:default>
-                        {{ (node.probe.memory?.usage_percent || 0).toFixed(1) }}%
+                        {{
+                          (node.probe.memory?.usage_percent || 0).toFixed(1)
+                        }}%
                       </template>
                     </v-progress-linear>
                   </div>
                   <!-- Network -->
-                  <template v-if="node.probe.network && node.probe.network.length">
-                    <div v-for="iface in node.probe.network" :key="iface.name" class="probe-item">
+                  <template
+                    v-if="node.probe.network && node.probe.network.length"
+                  >
+                    <div
+                      v-for="iface in node.probe.network"
+                      :key="iface.name"
+                      class="probe-item"
+                    >
                       <span>{{ iface.name }}</span>
                       <div class="text-caption">
-                        <span class="text-success">↓ {{ formatSpeed(iface.rx_speed) }}</span>
-                        <span class="ml-2 text-info">↑ {{ formatSpeed(iface.tx_speed) }}</span>
+                        <span class="text-success"
+                          >↓ {{ formatSpeed(iface.rx_speed) }}</span
+                        >
+                        <span class="ml-2 text-info"
+                          >↑ {{ formatSpeed(iface.tx_speed) }}</span
+                        >
                       </div>
                     </div>
                   </template>
@@ -101,13 +124,11 @@
           </v-card-text>
 
           <v-card-actions>
-            <v-btn
-              variant="tonal"
-              size="small"
-              @click="toggleProbe(node.id)"
-            >
-              <v-icon start>{{ expandedNode === node.id ? 'mdi-chevron-up' : 'mdi-chevron-down' }}</v-icon>
-              {{ expandedNode === node.id ? '收起' : '探针' }}
+            <v-btn variant="tonal" size="small" @click="toggleProbe(node.id)">
+              <v-icon start>{{
+                expandedNode === node.id ? "mdi-chevron-up" : "mdi-chevron-down"
+              }}</v-icon>
+              {{ expandedNode === node.id ? "收起" : "探针" }}
             </v-btn>
           </v-card-actions>
         </v-card>
@@ -122,60 +143,66 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { nodeAPI } from '@/api'
-import dayjs from 'dayjs'
-import relativeTime from 'dayjs/plugin/relativeTime'
-import 'dayjs/locale/zh-cn'
+import { ref, onMounted, onUnmounted } from "vue";
+import { nodeAPI } from "@/api";
+import { getForwardProtocolTitle } from "@/constants/forwardProtocols";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+import "dayjs/locale/zh-cn";
 
-dayjs.extend(relativeTime)
-dayjs.locale('zh-cn')
+dayjs.extend(relativeTime);
+dayjs.locale("zh-cn");
 
-const nodes = ref([])
-const expandedNode = ref(null)
-const loading = ref(false)
-let refreshInterval = null
+const nodes = ref([]);
+const expandedNode = ref(null);
+const loading = ref(false);
+let refreshInterval = null;
 
 function formatDate(date) {
-  if (!date) return '未知'
-  return dayjs(date).fromNow()
+  if (!date) return "未知";
+  return dayjs(date).fromNow();
 }
 
 function formatSpeed(bytes) {
-  if (!bytes) return '0 B/s'
-  const k = 1024
-  const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  if (!bytes) return "0 B/s";
+  const k = 1024;
+  const sizes = ["B/s", "KB/s", "MB/s", "GB/s"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
+function formatProtocols(protocols) {
+  return (Array.isArray(protocols) ? protocols : [])
+    .map((item) => getForwardProtocolTitle(item))
+    .join(", ");
 }
 
 function toggleProbe(nodeId) {
-  expandedNode.value = expandedNode.value === nodeId ? null : nodeId
+  expandedNode.value = expandedNode.value === nodeId ? null : nodeId;
 }
 
 async function loadNodes() {
   try {
-    const response = await nodeAPI.list()
-    nodes.value = Array.isArray(response.data) ? response.data : []
+    const response = await nodeAPI.list();
+    nodes.value = Array.isArray(response.data) ? response.data : [];
   } catch (error) {
-    console.error('Failed to load nodes:', error)
+    console.error("Failed to load nodes:", error);
   }
 }
 
 onMounted(async () => {
-  loading.value = true
-  await loadNodes()
-  loading.value = false
+  loading.value = true;
+  await loadNodes();
+  loading.value = false;
 
-  // 每秒自动刷新探针数据
-  refreshInterval = setInterval(loadNodes, 1000)
-})
+  refreshInterval = setInterval(loadNodes, 10000);
+});
 
 onUnmounted(() => {
   if (refreshInterval) {
-    clearInterval(refreshInterval)
+    clearInterval(refreshInterval);
   }
-})
+});
 </script>
 
 <style scoped>
@@ -184,8 +211,13 @@ onUnmounted(() => {
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
 }
 
 .probe-item {

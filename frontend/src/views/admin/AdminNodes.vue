@@ -3,7 +3,12 @@
     <div class="d-flex align-center mb-6">
       <h1 class="text-h4">节点管理</h1>
       <v-spacer />
-      <v-btn variant="tonal" prepend-icon="mdi-refresh" :loading="loading" @click="loadNodes">
+      <v-btn
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        :loading="loading"
+        @click="loadNodes"
+      >
         刷新列表
       </v-btn>
     </div>
@@ -45,21 +50,22 @@
     </v-row>
 
     <v-card>
-      <v-data-table
-        :headers="headers"
-        :items="nodes"
-        :loading="loading"
-      >
+      <v-data-table :headers="headers" :items="nodes" :loading="loading">
         <template v-slot:item.status="{ item }">
-          <v-chip :color="item.status === 'online' ? 'success' : 'error'" size="small">
-            {{ item.status === 'online' ? '在线' : '离线' }}
+          <v-chip
+            :color="item.status === 'online' ? 'success' : 'error'"
+            size="small"
+          >
+            {{ item.status === "online" ? "在线" : "离线" }}
           </v-chip>
         </template>
 
         <template v-slot:item.name="{ item }">
           <div class="d-flex flex-column">
             <span class="font-weight-medium">{{ item.name }}</span>
-            <span class="text-caption text-medium-emphasis">倍率 {{ item.multiplier || 1 }}</span>
+            <span class="text-caption text-medium-emphasis"
+              >倍率 {{ item.multiplier || 1 }}</span
+            >
           </div>
         </template>
 
@@ -68,13 +74,36 @@
         </template>
 
         <template v-slot:item.region="{ item }">
-          {{ item.region || '未知' }}
+          {{ item.region || "未知" }}
         </template>
 
         <template v-slot:item.protocols="{ item }">
-          <v-chip v-for="proto in (item.protocols || [])" :key="proto" size="x-small" class="mr-1">
-            {{ proto }}
+          <v-chip
+            v-for="proto in item.protocols || []"
+            :key="proto"
+            size="x-small"
+            class="mr-1"
+          >
+            {{ getForwardProtocolTitle(proto) }}
           </v-chip>
+        </template>
+
+        <template v-slot:item.allowed_groups="{ item }">
+          <div
+            v-if="item.allowed_group_ids?.length"
+            class="d-flex flex-wrap ga-1"
+          >
+            <v-chip
+              v-for="groupID in item.allowed_group_ids"
+              :key="groupID"
+              size="x-small"
+              color="secondary"
+              variant="tonal"
+            >
+              {{ resolveGroupName(groupID) }}
+            </v-chip>
+          </div>
+          <span v-else class="text-caption text-medium-emphasis">未授权</span>
         </template>
 
         <template v-slot:item.diagnostics="{ item }">
@@ -83,7 +112,11 @@
             size="small"
             variant="tonal"
           >
-            {{ hasFailedDiagnostics(item) ? `异常 ${getFailedDiagnostics(item).length}` : '正常' }}
+            {{
+              hasFailedDiagnostics(item)
+                ? `异常 ${getFailedDiagnostics(item).length}`
+                : "正常"
+            }}
           </v-chip>
         </template>
 
@@ -92,13 +125,25 @@
         </template>
 
         <template v-slot:item.actions="{ item }">
-          <v-btn icon size="small" variant="text" color="warning" @click="openDiagnostics(item)">
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            color="warning"
+            @click="openDiagnostics(item)"
+          >
             <v-icon>mdi-stethoscope</v-icon>
           </v-btn>
           <v-btn icon size="small" variant="text" @click="editNode(item)">
             <v-icon>mdi-pencil</v-icon>
           </v-btn>
-          <v-btn icon size="small" variant="text" color="error" @click="deleteNode(item)">
+          <v-btn
+            icon
+            size="small"
+            variant="text"
+            color="error"
+            @click="deleteNode(item)"
+          >
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
@@ -121,7 +166,7 @@
             <v-text-field
               v-model="form.name"
               label="节点名称"
-              :rules="[v => !!v || '请输入节点名称']"
+              :rules="[(v) => !!v || '请输入节点名称']"
             />
 
             <v-row>
@@ -129,17 +174,30 @@
                 <v-text-field
                   v-model="form.host"
                   label="节点地址"
-                  :rules="[v => !!v || '请输入节点地址']"
+                  :rules="[(v) => !!v || '请输入节点地址']"
                 />
               </v-col>
             </v-row>
 
-            <v-combobox
+            <v-select
               v-model="form.protocols"
-              :items="['gost']"
-              label="支持的协议"
+              :items="nodeCapabilityOptions"
+              item-title="title"
+              item-value="value"
+              label="节点能力"
               multiple
               chips
+            />
+
+            <v-select
+              v-model="form.allowed_group_ids"
+              :items="userGroups"
+              item-title="name"
+              item-value="id"
+              label="允许使用的用户组"
+              multiple
+              chips
+              hint="仅这些用户组可以在前台看到并使用该节点"
             />
 
             <v-text-field
@@ -164,7 +222,9 @@
         <v-card-actions>
           <v-spacer />
           <v-btn @click="closeDialog">取消</v-btn>
-          <v-btn color="primary" @click="saveNode" :loading="saving">保存</v-btn>
+          <v-btn color="primary" @click="saveNode" :loading="saving"
+            >保存</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -179,7 +239,9 @@
         <v-card-actions>
           <v-spacer />
           <v-btn @click="showDeleteDialog = false">取消</v-btn>
-          <v-btn color="error" @click="confirmDelete" :loading="deleting">删除</v-btn>
+          <v-btn color="error" @click="confirmDelete" :loading="deleting"
+            >删除</v-btn
+          >
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -189,13 +251,18 @@
         <v-card-title class="d-flex align-center">
           <span>节点诊断</span>
           <v-spacer />
-          <span class="text-body-2 text-medium-emphasis">{{ diagnosticNode?.name || '' }}</span>
+          <span class="text-body-2 text-medium-emphasis">{{
+            diagnosticNode?.name || ""
+          }}</span>
         </v-card-title>
         <v-card-text>
           <div v-if="loadingDiagnostics" class="py-8 text-center">
             <v-progress-circular indeterminate color="primary" />
           </div>
-          <div v-else-if="diagnostics.length === 0" class="py-8 text-center text-medium-emphasis">
+          <div
+            v-else-if="diagnostics.length === 0"
+            class="py-8 text-center text-medium-emphasis"
+          >
             当前没有诊断异常，规则启动状态正常。
           </div>
           <v-table v-else density="comfortable">
@@ -211,13 +278,17 @@
             <tbody>
               <tr v-for="item in diagnostics" :key="item.rule_id">
                 <td>{{ item.rule_name || `规则 #${item.rule_id}` }}</td>
-                <td>{{ item.listen_port || '-' }}</td>
+                <td>{{ item.listen_port || "-" }}</td>
                 <td>
-                  <v-chip :color="item.status === 'failed' ? 'error' : 'success'" size="small" variant="tonal">
-                    {{ item.status === 'failed' ? '失败' : '运行中' }}
+                  <v-chip
+                    :color="item.status === 'failed' ? 'error' : 'success'"
+                    size="small"
+                    variant="tonal"
+                  >
+                    {{ item.status === "failed" ? "失败" : "运行中" }}
                   </v-chip>
                 </td>
-                <td class="text-body-2">{{ item.message || '运行正常' }}</td>
+                <td class="text-body-2">{{ item.message || "运行正常" }}</td>
                 <td>{{ formatDiagnosticTime(item.updated_at) }}</td>
               </tr>
             </tbody>
@@ -233,166 +304,220 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
-import { adminAPI } from '@/api'
-import { useSnackbar } from '@/composables/useSnackbar'
-import dayjs from 'dayjs'
+import { computed, ref, onMounted } from "vue";
+import { adminAPI } from "@/api";
+import { useSnackbar } from "@/composables/useSnackbar";
+import {
+  nodeCapabilityOptions,
+  getForwardProtocolTitle,
+} from "@/constants/forwardProtocols";
+import dayjs from "dayjs";
 
-const { showSnackbar } = useSnackbar()
+const { showSnackbar } = useSnackbar();
 
-const nodes = ref([])
-const loading = ref(false)
-const saving = ref(false)
-const deleting = ref(false)
-const loadingDiagnostics = ref(false)
+const nodes = ref([]);
+const userGroups = ref([]);
+const loading = ref(false);
+const saving = ref(false);
+const deleting = ref(false);
+const loadingDiagnostics = ref(false);
 
-const showCreateDialog = ref(false)
-const showDeleteDialog = ref(false)
-const showDiagnosticsDialog = ref(false)
-const editingNode = ref(null)
-const deletingNode = ref(null)
-const diagnosticNode = ref(null)
-const diagnostics = ref([])
-const formRef = ref(null)
+const showCreateDialog = ref(false);
+const showDeleteDialog = ref(false);
+const showDiagnosticsDialog = ref(false);
+const editingNode = ref(null);
+const deletingNode = ref(null);
+const diagnosticNode = ref(null);
+const diagnostics = ref([]);
+const formRef = ref(null);
 
-const form = ref({
-  name: '',
-  host: '',
-  protocols: ['gost'],
-  region: '',
-  multiplier: 1.0
-})
+const defaultNodeProtocols = nodeCapabilityOptions.map((item) => item.value);
 
-const totalNodes = computed(() => nodes.value.length)
-const onlineNodes = computed(() => nodes.value.filter((item) => item.status === 'online').length)
-const offlineNodes = computed(() => totalNodes.value - onlineNodes.value)
+function defaultForm() {
+  return {
+    name: "",
+    host: "",
+    protocols: [...defaultNodeProtocols],
+    allowed_group_ids: [],
+    region: "",
+    multiplier: 1.0,
+  };
+}
+
+const form = ref(defaultForm());
+
+const totalNodes = computed(() => nodes.value.length);
+const onlineNodes = computed(
+  () => nodes.value.filter((item) => item.status === "online").length,
+);
+const offlineNodes = computed(() => totalNodes.value - onlineNodes.value);
 
 const headers = [
-  { title: '状态', key: 'status', width: 100 },
-  { title: '名称', key: 'name' },
-  { title: '接入地址', key: 'host' },
-  { title: '协议', key: 'protocols' },
-  { title: '诊断', key: 'diagnostics', width: 120 },
-  { title: '地区', key: 'region' },
-  { title: '最后活跃', key: 'last_seen' },
-  { title: '操作', key: 'actions', width: 160 }
-]
+  { title: "状态", key: "status", width: 100 },
+  { title: "名称", key: "name" },
+  { title: "接入地址", key: "host" },
+  { title: "能力", key: "protocols" },
+  { title: "允许用户组", key: "allowed_groups" },
+  { title: "诊断", key: "diagnostics", width: 120 },
+  { title: "地区", key: "region" },
+  { title: "最后活跃", key: "last_seen" },
+  { title: "操作", key: "actions", width: 160 },
+];
 
 function formatDate(date) {
-  if (!date) return '从未'
-  return dayjs(date).fromNow()
+  if (!date) return "从未";
+  return dayjs(date).fromNow();
 }
 
 function formatDiagnosticTime(timestamp) {
-  if (!timestamp) return '-'
-  return dayjs.unix(timestamp).format('YYYY-MM-DD HH:mm:ss')
+  if (!timestamp) return "-";
+  return dayjs.unix(timestamp).format("YYYY-MM-DD HH:mm:ss");
 }
 
 function getFailedDiagnostics(node) {
-  return Array.isArray(node?.diagnostics) ? node.diagnostics.filter((item) => item.status === 'failed') : []
+  return Array.isArray(node?.diagnostics)
+    ? node.diagnostics.filter((item) => item.status === "failed")
+    : [];
 }
 
 function hasFailedDiagnostics(node) {
-  return getFailedDiagnostics(node).length > 0
+  return getFailedDiagnostics(node).length > 0;
+}
+
+function resolveGroupName(groupID) {
+  return (
+    userGroups.value.find((item) => item.id === groupID)?.name ||
+    `用户组 #${groupID}`
+  );
 }
 
 function editNode(node) {
-  editingNode.value = node
+  editingNode.value = node;
   form.value = {
     name: node.name,
     host: node.host,
-    protocols: Array.isArray(node.protocols) ? node.protocols.filter((item) => item === 'gost') : ['gost'],
-    region: node.region || '',
-    multiplier: node.multiplier || 1
-  }
-  showCreateDialog.value = true
+    protocols: Array.isArray(node.protocols) ? [...node.protocols] : [],
+    allowed_group_ids: Array.isArray(node.allowed_group_ids)
+      ? [...node.allowed_group_ids]
+      : [],
+    region: node.region || "",
+    multiplier: node.multiplier || 1,
+  };
+  showCreateDialog.value = true;
 }
 
 function deleteNode(node) {
-  deletingNode.value = node
-  showDeleteDialog.value = true
+  deletingNode.value = node;
+  showDeleteDialog.value = true;
 }
 
 async function openDiagnostics(node) {
-  diagnosticNode.value = node
-  diagnostics.value = []
-  showDiagnosticsDialog.value = true
-  loadingDiagnostics.value = true
+  diagnosticNode.value = node;
+  diagnostics.value = [];
+  showDiagnosticsDialog.value = true;
+  loadingDiagnostics.value = true;
   try {
-    const response = await adminAPI.nodes.get(node.id)
-    diagnostics.value = response.data?.diagnostics || []
+    const response = await adminAPI.nodes.get(node.id);
+    diagnostics.value = response.data?.diagnostics || [];
   } catch (error) {
-    console.error('Failed to load diagnostics:', error)
-    showSnackbar(error.response?.data?.message || error.message || '加载节点诊断失败', 'error')
+    console.error("Failed to load diagnostics:", error);
+    showSnackbar(
+      error.response?.data?.message || error.message || "加载节点诊断失败",
+      "error",
+    );
   } finally {
-    loadingDiagnostics.value = false
+    loadingDiagnostics.value = false;
   }
 }
 
 function closeDialog() {
-  showCreateDialog.value = false
-  editingNode.value = null
-  form.value = {
-    name: '',
-    host: '',
-    protocols: ['gost'],
-    region: '',
-    multiplier: 1.0
-  }
+  showCreateDialog.value = false;
+  editingNode.value = null;
+  form.value = defaultForm();
 }
 
 async function saveNode() {
-  if (!editingNode.value) return
+  if (!editingNode.value) return;
 
-  const { valid } = await formRef.value.validate()
-  if (!valid) return
+  const { valid } = await formRef.value.validate();
+  if (!valid) return;
 
-  saving.value = true
+  saving.value = true;
   try {
-    await adminAPI.nodes.update(editingNode.value.id, form.value)
-    showSnackbar('节点更新成功', 'success')
-    closeDialog()
-    loadNodes()
+    await adminAPI.nodes.update(editingNode.value.id, {
+      ...form.value,
+      protocols: Array.isArray(form.value.protocols)
+        ? form.value.protocols
+        : [],
+      allowed_group_ids: Array.isArray(form.value.allowed_group_ids)
+        ? form.value.allowed_group_ids
+        : [],
+    });
+    showSnackbar("节点更新成功", "success");
+    closeDialog();
+    loadNodes();
   } catch (error) {
-    console.error('Failed to save node:', error)
-    showSnackbar(error.response?.data?.message || error.message || '保存失败', 'error')
+    console.error("Failed to save node:", error);
+    showSnackbar(
+      error.response?.data?.message || error.message || "保存失败",
+      "error",
+    );
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 
 async function confirmDelete() {
-  if (!deletingNode.value) return
+  if (!deletingNode.value) return;
 
-  deleting.value = true
+  deleting.value = true;
   try {
-    await adminAPI.nodes.delete(deletingNode.value.id)
-    showSnackbar('节点删除成功', 'success')
-    showDeleteDialog.value = false
-    deletingNode.value = null
-    loadNodes()
+    await adminAPI.nodes.delete(deletingNode.value.id);
+    showSnackbar("节点删除成功", "success");
+    showDeleteDialog.value = false;
+    deletingNode.value = null;
+    loadNodes();
   } catch (error) {
-    console.error('Failed to delete node:', error)
-    showSnackbar(error.response?.data?.message || error.message || '删除失败', 'error')
+    console.error("Failed to delete node:", error);
+    showSnackbar(
+      error.response?.data?.message || error.message || "删除失败",
+      "error",
+    );
   } finally {
-    deleting.value = false
+    deleting.value = false;
   }
 }
 
 async function loadNodes() {
-  loading.value = true
+  loading.value = true;
   try {
-    const response = await adminAPI.nodes.list()
-    nodes.value = response.data || []
+    const response = await adminAPI.nodes.list();
+    nodes.value = response.data || [];
   } catch (error) {
-    console.error('Failed to load nodes:', error)
-    showSnackbar(error.response?.data?.message || error.message || '加载节点失败', 'error')
+    console.error("Failed to load nodes:", error);
+    showSnackbar(
+      error.response?.data?.message || error.message || "加载节点失败",
+      "error",
+    );
   } finally {
-    loading.value = false
+    loading.value = false;
+  }
+}
+
+async function loadUserGroups() {
+  try {
+    const response = await adminAPI.userGroups.list();
+    userGroups.value = Array.isArray(response.data) ? response.data : [];
+  } catch (error) {
+    userGroups.value = [];
+    showSnackbar(
+      error.response?.data?.message || error.message || "加载用户组失败",
+      "error",
+    );
   }
 }
 
 onMounted(() => {
-  loadNodes()
-})
+  Promise.all([loadNodes(), loadUserGroups()]);
+});
 </script>

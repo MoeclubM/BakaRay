@@ -82,7 +82,6 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.NodeGroup{},
 		&models.ForwardingRule{},
 		&models.Target{},
-		&models.GostRule{},
 		&models.Package{},
 		&models.Order{},
 		&models.PaymentConfig{},
@@ -94,7 +93,11 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 
 	// SQLite 手动添加新列（GORM AutoMigrate 对 SQLite 支持有限）
-	return addMissingColumns(db)
+	if err := addMissingColumns(db); err != nil {
+		return err
+	}
+
+	return normalizeLegacyGostRules(db)
 }
 
 // addMissingColumns 确保数据库有新添加的列
@@ -109,6 +112,10 @@ func addMissingColumns(db *gorm.DB) error {
 		{"packages", "renewable", "BOOLEAN", "0"},
 		{"users", "traffic_balance", "BIGINT", "0"},
 		{"payment_configs", "pay_type", "VARCHAR(32)", "''"},
+		{"forwarding_rules", "tunnel_enabled", "BOOLEAN", "0"},
+		{"forwarding_rules", "exit_node_id", "BIGINT", "0"},
+		{"forwarding_rules", "tunnel_protocol", "VARCHAR(20)", "''"},
+		{"forwarding_rules", "tunnel_port", "INTEGER", "0"},
 	}
 
 	// 检测数据库类型
@@ -155,5 +162,64 @@ func addMissingColumns(db *gorm.DB) error {
 		}
 	}
 
+	return nil
+}
+
+type legacyGostRule struct {
+	RuleID    uint
+	Transport string
+}
+
+func (legacyGostRule) TableName() string {
+	return "gost_rules"
+}
+
+func normalizeLegacyGostRules(db *gorm.DB) error {
+	var legacyRules []models.ForwardingRule
+	if err := db.Where("protocol = ?", "gost").Find(&legacyRules).Error; err != nil {
+		return err
+	}
+	if len(legacyRules) == 0 {
+		return nil
+	}
+
+	ruleIDs := make([]uint, 0, len(legacyRules))
+	for _, rule := range legacyRules {
+		ruleIDs = append(ruleIDs, rule.ID)
+	}
+
+	transportByRuleID := make(map[uint]string, len(ruleIDs))
+	hasGostTable := db.Migrator().HasTable("gost_rules")
+	if hasGostTable {
+		var gostRules []legacyGostRule
+		if err := db.Select("rule_id", "transport").Where("rule_id IN ?", ruleIDs).Find(&gostRules).Error; err != nil {
+			return err
+		}
+		for _, rule := range gostRules {
+			transportByRuleID[rule.RuleID] = strings.ToLower(strings.TrimSpace(rule.Transport))
+		}
+	}
+
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		for _, rule := range legacyRules {
+			protocol := "tcp"
+			if transportByRuleID[rule.ID] == "udp" {
+				protocol = "udp"
+			}
+			if err := tx.Model(&models.ForwardingRule{}).Where("id = ?", rule.ID).Update("protocol", protocol).Error; err != nil {
+				return err
+			}
+		}
+		if hasGostTable {
+			return tx.Where("rule_id IN ?", ruleIDs).Delete(&legacyGostRule{}).Error
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if hasGostTable {
+		return db.Migrator().DropTable("gost_rules")
+	}
 	return nil
 }

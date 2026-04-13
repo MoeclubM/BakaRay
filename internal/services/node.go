@@ -64,7 +64,7 @@ func (s *NodeService) RegisterNode(name, host string, port int, secret string) (
 			"host":      host,
 			"port":      port,
 			"secret":    secret,
-			"protocols": NormalizeNodeProtocols([]string{"gost"}),
+			"protocols": NormalizeNodeProtocols(nil),
 		}
 		if err := s.db.Model(&models.Node{}).Where("id = ?", node.ID).Updates(updates).Error; err != nil {
 			return nil, err
@@ -72,13 +72,13 @@ func (s *NodeService) RegisterNode(name, host string, port int, secret string) (
 		node.Host = host
 		node.Port = port
 		node.Secret = secret
-		node.Protocols = NormalizeNodeProtocols([]string{"gost"})
+		node.Protocols = NormalizeNodeProtocols(nil)
 		return &node, nil
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
-	return s.CreateNode(name, host, port, secret, 0, []string{"gost"}, 1, "")
+	return s.CreateNode(name, host, port, secret, 0, nil, 1, "")
 }
 
 // GetNodeByID 根据ID获取节点
@@ -90,6 +90,7 @@ func (s *NodeService) GetNodeByID(id uint) (*models.Node, error) {
 		}
 		return nil, err
 	}
+	node.Protocols = NormalizeNodeProtocols([]string(node.Protocols))
 	return &node, nil
 }
 
@@ -122,6 +123,9 @@ func (s *NodeService) ListNodes(page, pageSize int, status string) ([]models.Nod
 	query.Count(&total)
 	offset := (page - 1) * pageSize
 	query.Offset(offset).Limit(pageSize).Find(&nodes)
+	for i := range nodes {
+		nodes[i].Protocols = NormalizeNodeProtocols([]string(nodes[i].Protocols))
+	}
 
 	return nodes, total
 }
@@ -157,6 +161,9 @@ func (s *NodeService) ListNodesForUser(userGroupID uint, page, pageSize int, sta
 	query.Count(&total)
 	offset := (page - 1) * pageSize
 	query.Offset(offset).Limit(pageSize).Order("created_at DESC").Find(&nodes)
+	for i := range nodes {
+		nodes[i].Protocols = NormalizeNodeProtocols([]string(nodes[i].Protocols))
+	}
 
 	return nodes, total
 }

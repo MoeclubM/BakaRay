@@ -21,7 +21,7 @@ func TestRuleCRUD(t *testing.T) {
 		NodeID:       node.ID,
 		UserID:       user.ID,
 		Name:         "Test Rule",
-		Protocol:     "gost",
+		Protocol:     "tcp",
 		Enabled:      true,
 		TrafficUsed:  0,
 		TrafficLimit: 2048,
@@ -68,9 +68,9 @@ func TestListRules(t *testing.T) {
 	node1 := createTestNode(t, db, "rule-list-node-1")
 	node2 := createTestNode(t, db, "rule-list-node-2")
 
-	rule1 := &models.ForwardingRule{NodeID: node1.ID, UserID: user1.ID, Name: "Rule 1", Protocol: "gost", Enabled: true, ListenPort: 8101}
-	rule2 := &models.ForwardingRule{NodeID: node1.ID, UserID: user1.ID, Name: "Rule 2", Protocol: "gost", Enabled: true, ListenPort: 8102}
-	rule3 := &models.ForwardingRule{NodeID: node2.ID, UserID: user2.ID, Name: "Rule 3", Protocol: "gost", Enabled: true, ListenPort: 8103}
+	rule1 := &models.ForwardingRule{NodeID: node1.ID, UserID: user1.ID, Name: "Rule 1", Protocol: "tcp", Enabled: true, ListenPort: 8101}
+	rule2 := &models.ForwardingRule{NodeID: node1.ID, UserID: user1.ID, Name: "Rule 2", Protocol: "tcp", Enabled: true, ListenPort: 8102}
+	rule3 := &models.ForwardingRule{NodeID: node2.ID, UserID: user2.ID, Name: "Rule 3", Protocol: "tcp", Enabled: true, ListenPort: 8103}
 	require.NoError(t, db.Create(rule1).Error)
 	require.NoError(t, db.Create(rule2).Error)
 	require.NoError(t, db.Create(rule3).Error)
@@ -120,7 +120,7 @@ func TestTrafficAccounting(t *testing.T) {
 		NodeID:       node.ID,
 		UserID:       user.ID,
 		Name:         "Traffic Rule",
-		Protocol:     "gost",
+		Protocol:     "udp",
 		Enabled:      true,
 		TrafficLimit: 2048,
 		ListenPort:   8201,
@@ -166,7 +166,7 @@ func TestTrafficAccounting(t *testing.T) {
 	require.Equal(t, int64(700), bytesOut)
 }
 
-func TestTargetsAndGostRule(t *testing.T) {
+func TestTargets(t *testing.T) {
 	db := setupTestDB(t)
 	defer cleanupTestDB(db)
 
@@ -177,7 +177,7 @@ func TestTargetsAndGostRule(t *testing.T) {
 		NodeID:     node.ID,
 		UserID:     user.ID,
 		Name:       "Target Rule",
-		Protocol:   "gost",
+		Protocol:   "tcp",
 		Enabled:    true,
 		ListenPort: 8301,
 	}
@@ -208,32 +208,4 @@ func TestTargetsAndGostRule(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, allTargets)
 
-	gostRule, err := service.GetGostRule(rule.ID)
-	require.NoError(t, err)
-	require.Nil(t, gostRule)
-
-	require.NoError(t, service.CreateGostRule(&models.GostRule{
-		RuleID:    rule.ID,
-		Transport: "tcp",
-		TLS:       true,
-		Chain:     "edge",
-		Timeout:   30,
-	}))
-
-	gostRule, err = service.GetGostRule(rule.ID)
-	require.NoError(t, err)
-	require.NotNil(t, gostRule)
-	require.Equal(t, "tcp", gostRule.Transport)
-	require.True(t, gostRule.TLS)
-
-	require.NoError(t, service.UpsertGostRule(rule.ID, map[string]interface{}{
-		"transport": "quic",
-		"timeout":   60,
-	}))
-
-	gostRule, err = service.GetGostRule(rule.ID)
-	require.NoError(t, err)
-	require.NotNil(t, gostRule)
-	require.Equal(t, "quic", gostRule.Transport)
-	require.Equal(t, 60, gostRule.Timeout)
 }

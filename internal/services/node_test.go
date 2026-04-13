@@ -24,7 +24,7 @@ func TestCreateNode(t *testing.T) {
 			8080,
 			"secret123",
 			1,
-			[]string{"gost"},
+			[]string{"tcp", "quic"},
 			1.5,
 			"US",
 		)
@@ -70,7 +70,7 @@ func TestCreateNode(t *testing.T) {
 			8080,
 			"secret",
 			1,
-			[]string{"gost"},
+			[]string{"tcp", "quic"},
 			1.0,
 			"US",
 		)
@@ -94,7 +94,7 @@ func TestRegisterNode(t *testing.T) {
 		require.Equal(t, "10.0.0.1", node.Host)
 		require.Equal(t, 8081, node.Port)
 		require.Equal(t, "secret123", node.Secret)
-		require.Equal(t, models.StringSlice{"gost"}, node.Protocols)
+		require.Equal(t, models.StringSlice(SupportedNodeProtocols()), node.Protocols)
 	})
 
 	t.Run("重复注册复用原节点ID", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestRegisterNode(t *testing.T) {
 		require.Equal(t, first.ID, second.ID)
 		require.Equal(t, "10.0.0.3", second.Host)
 		require.Equal(t, 8082, second.Port)
-		require.Equal(t, models.StringSlice{"gost"}, second.Protocols)
+		require.Equal(t, models.StringSlice(SupportedNodeProtocols()), second.Protocols)
 	})
 }
 
@@ -506,26 +506,26 @@ func TestUpdateNode(t *testing.T) {
 
 	t.Run("更新协议列表", func(t *testing.T) {
 		err := service.UpdateNode(testNode.ID, map[string]interface{}{
-			"protocols": []string{"gost", "socks5", "http"},
+			"protocols": []string{"tcp", "ws", "quic"},
 		})
 
 		require.NoError(t, err)
 
 		updatedNode, err := service.GetNodeByID(testNode.ID)
 		require.NoError(t, err)
-		require.Equal(t, models.StringSlice{"gost"}, updatedNode.Protocols)
+		require.Equal(t, models.StringSlice{"tcp", "ws", "quic"}, updatedNode.Protocols)
 	})
 
 	t.Run("更新协议列表为字符串", func(t *testing.T) {
 		err := service.UpdateNode(testNode.ID, map[string]interface{}{
-			"protocols": `["wireguard","ss"]`,
+			"protocols": `["mtls","grpc"]`,
 		})
 
 		require.NoError(t, err)
 
 		updatedNode, err := service.GetNodeByID(testNode.ID)
 		require.NoError(t, err)
-		require.Equal(t, models.StringSlice{"gost"}, updatedNode.Protocols)
+		require.Equal(t, models.StringSlice{"mtls", "grpc"}, updatedNode.Protocols)
 	})
 
 	t.Run("更新节点组ID", func(t *testing.T) {
@@ -672,6 +672,41 @@ func TestGetAllowedGroups(t *testing.T) {
 	})
 }
 
+func TestListNodesForUser(t *testing.T) {
+	db := setupTestDB(t)
+	defer cleanupTestDB(db)
+
+	service := NewNodeService(db, nil)
+	node1 := createTestNodeFull(t, db, "UserNode1", "usernode1.test.com", 8080, "online")
+	node2 := createTestNodeFull(t, db, "UserNode2", "usernode2.test.com", 8081, "offline")
+
+	require.NoError(t, db.Create(&models.NodeAllowedGroup{NodeID: node1.ID, UserGroupID: 10}).Error)
+	require.NoError(t, db.Create(&models.NodeAllowedGroup{NodeID: node2.ID, UserGroupID: 20}).Error)
+
+	t.Run("仅返回当前用户组有权访问的节点", func(t *testing.T) {
+		nodes, total := service.ListNodesForUser(10, 1, 20, "")
+
+		require.Len(t, nodes, 1)
+		require.Equal(t, int64(1), total)
+		require.Equal(t, node1.ID, nodes[0].ID)
+	})
+
+	t.Run("支持状态筛选", func(t *testing.T) {
+		nodes, total := service.ListNodesForUser(20, 1, 20, "offline")
+
+		require.Len(t, nodes, 1)
+		require.Equal(t, int64(1), total)
+		require.Equal(t, node2.ID, nodes[0].ID)
+	})
+
+	t.Run("无用户组时返回空结果", func(t *testing.T) {
+		nodes, total := service.ListNodesForUser(0, 1, 20, "")
+
+		require.Empty(t, nodes)
+		require.Zero(t, total)
+	})
+}
+
 // TestSetAllowedGroups 测试设置节点允许的用户组
 func TestSetAllowedGroups(t *testing.T) {
 	db := setupTestDB(t)
@@ -735,21 +770,21 @@ func TestListRulesByNode(t *testing.T) {
 	rule1 := &models.ForwardingRule{
 		NodeID:     testNode.ID,
 		Name:       "Rule1",
-		Protocol:   "gost",
+		Protocol:   "tcp",
 		Enabled:    true,
 		ListenPort: 8081,
 	}
 	rule2 := &models.ForwardingRule{
 		NodeID:     testNode.ID,
 		Name:       "Rule2",
-		Protocol:   "gost",
+		Protocol:   "tcp",
 		Enabled:    true,
 		ListenPort: 8082,
 	}
 	rule3 := &models.ForwardingRule{
 		NodeID:     testNode.ID,
 		Name:       "Rule3",
-		Protocol:   "gost",
+		Protocol:   "udp",
 		Enabled:    true,
 		ListenPort: 8083,
 	}

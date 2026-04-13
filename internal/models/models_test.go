@@ -42,13 +42,13 @@ func TestUserJSON(t *testing.T) {
 
 func TestNodeStatus(t *testing.T) {
 	node := Node{
-		ID:      1,
-		Name:    "Test Node",
-		Host:    "node1.example.com",
-		Port:    22,
-		Secret:  "secret123",
-		Status:  "online",
-		Region:  "US",
+		ID:     1,
+		Name:   "Test Node",
+		Host:   "node1.example.com",
+		Port:   22,
+		Secret: "secret123",
+		Status: "online",
+		Region: "US",
 	}
 
 	if node.Status != "online" {
@@ -61,26 +61,33 @@ func TestNodeStatus(t *testing.T) {
 
 func TestForwardingRule(t *testing.T) {
 	rule := ForwardingRule{
-		ID:           1,
-		NodeID:       1,
-		UserID:       1,
-		Name:         "HTTP Proxy",
-		Protocol:     "gost",
-		Enabled:      true,
-		TrafficUsed:  1024,
-		TrafficLimit: 1024 * 1024 * 1024, // 1GB
-		SpeedLimit:   1024,               // 1Mbps
-		ListenPort:   8080,
+		ID:             1,
+		NodeID:         1,
+		UserID:         1,
+		Name:           "HTTP Proxy",
+		Protocol:       "tcp",
+		Enabled:        true,
+		TrafficUsed:    1024,
+		TrafficLimit:   1024 * 1024 * 1024, // 1GB
+		SpeedLimit:     1024,               // 1Mbps
+		ListenPort:     8080,
+		TunnelEnabled:  true,
+		ExitNodeID:     2,
+		TunnelProtocol: "ws",
+		TunnelPort:     9443,
 	}
 
-	if rule.Protocol != "gost" {
-		t.Errorf("Protocol = %v, want gost", rule.Protocol)
+	if rule.Protocol != "tcp" {
+		t.Errorf("Protocol = %v, want tcp", rule.Protocol)
 	}
 	if !rule.Enabled {
 		t.Errorf("Enabled should be true")
 	}
 	if rule.ListenPort != 8080 {
 		t.Errorf("ListenPort = %v, want 8080", rule.ListenPort)
+	}
+	if !rule.TunnelEnabled || rule.ExitNodeID != 2 || rule.TunnelProtocol != "ws" || rule.TunnelPort != 9443 {
+		t.Errorf("unexpected tunnel fields: %#v", rule)
 	}
 }
 

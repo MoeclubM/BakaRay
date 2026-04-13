@@ -75,6 +75,18 @@ func (s *RuleService) ListRulesByNode(nodeID uint, enabledOnly bool) ([]models.F
 	return rules, nil
 }
 
+func (s *RuleService) ListRulesByExitNode(nodeID uint, enabledOnly bool) ([]models.ForwardingRule, error) {
+	var rules []models.ForwardingRule
+	query := s.db.Where("tunnel_enabled = ? AND exit_node_id = ?", true, nodeID)
+	if enabledOnly {
+		query = query.Where("enabled = ?", true)
+	}
+	if err := query.Find(&rules).Error; err != nil {
+		return nil, err
+	}
+	return rules, nil
+}
+
 // ListTargets 获取规则目标列表。
 func (s *RuleService) ListTargets(ruleID uint, enabledOnly bool) ([]models.Target, error) {
 	var targets []models.Target
@@ -106,54 +118,6 @@ func (s *RuleService) DeleteTarget(id uint) error {
 // DeleteTargetsByRuleID 删除规则的所有目标
 func (s *RuleService) DeleteTargetsByRuleID(ruleID uint) error {
 	return s.db.Where("rule_id = ?", ruleID).Delete(&models.Target{}).Error
-}
-
-// GetGostRule 获取 gost 协议配置
-func (s *RuleService) GetGostRule(ruleID uint) (*models.GostRule, error) {
-	var rule models.GostRule
-	if err := s.db.Where("rule_id = ?", ruleID).First(&rule).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	return &rule, nil
-}
-
-// CreateGostRule 创建 gost 协议配置
-func (s *RuleService) CreateGostRule(rule *models.GostRule) error {
-	return s.db.Create(rule).Error
-}
-
-func (s *RuleService) DeleteGostRule(ruleID uint) error {
-	return s.db.Where("rule_id = ?", ruleID).Delete(&models.GostRule{}).Error
-}
-
-// UpsertGostRule creates or updates gost config for a rule.
-func (s *RuleService) UpsertGostRule(ruleID uint, updates map[string]interface{}) error {
-	var existing models.GostRule
-	err := s.db.Where("rule_id = ?", ruleID).First(&existing).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			cfg := models.GostRule{RuleID: ruleID}
-			if v, ok := updates["transport"]; ok {
-				cfg.Transport, _ = v.(string)
-			}
-			if v, ok := updates["tls"]; ok {
-				cfg.TLS, _ = v.(bool)
-			}
-			if v, ok := updates["chain"]; ok {
-				cfg.Chain, _ = v.(string)
-			}
-			if v, ok := updates["timeout"]; ok {
-				cfg.Timeout, _ = v.(int)
-			}
-			return s.db.Create(&cfg).Error
-		}
-		return err
-	}
-
-	return s.db.Model(&models.GostRule{}).Where("rule_id = ?", ruleID).Updates(updates).Error
 }
 
 // MaxTrafficLimit 单次更新流量上限（防止异常大流量），单位：字节

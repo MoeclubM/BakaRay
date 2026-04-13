@@ -28,38 +28,49 @@ func TestResolveRuleStateValues(t *testing.T) {
 }
 
 func TestNormalizeAndValidateRuleSpec(t *testing.T) {
-	node := &models.Node{Protocols: models.StringSlice{"gost"}}
+	entryNode := &models.Node{ID: 1, Protocols: models.StringSlice{"tcp", "udp", "quic"}}
+	exitNode := &models.Node{ID: 2, Protocols: models.StringSlice{"ws", "grpc", "quic"}}
 
-	t.Run("rejects gost speed limit", func(t *testing.T) {
+	t.Run("rejects speed limit", func(t *testing.T) {
 		_, err := normalizeAndValidateRuleSpec(
-			node,
-			"gost",
+			entryNode,
+			nil,
+			"tcp",
 			8081,
 			true,
 			0,
 			64,
 			"direct",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			&GostConfig{Transport: "tcp"},
+			false,
+			0,
+			"",
+			0,
+			nil,
 			nil,
 			0,
 		)
 		if err == nil || !strings.Contains(err.Error(), "暂不支持限速") {
-			t.Fatalf("expected gost speed limit validation error, got %v", err)
+			t.Fatalf("expected speed limit validation error, got %v", err)
 		}
 	})
 
 	t.Run("rejects rr with less than two enabled targets", func(t *testing.T) {
 		_, err := normalizeAndValidateRuleSpec(
-			node,
-			"gost",
+			entryNode,
+			nil,
+			"tcp",
 			8082,
 			true,
 			0,
 			0,
 			"rr",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			&GostConfig{Transport: "tcp"},
+			false,
+			0,
+			"",
+			0,
+			nil,
 			nil,
 			0,
 		)
@@ -70,65 +81,128 @@ func TestNormalizeAndValidateRuleSpec(t *testing.T) {
 
 	t.Run("detects same port and layer4 conflict", func(t *testing.T) {
 		_, err := normalizeAndValidateRuleSpec(
-			node,
-			"gost",
+			entryNode,
+			nil,
+			"tcp",
 			8083,
 			true,
 			0,
 			0,
 			"direct",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			&GostConfig{Transport: "tcp"},
+			false,
+			0,
+			"",
+			0,
 			[]existingRuleConflict{
-				{ID: 2, ListenPort: 8083, Enabled: true, Layer4: "tcp"},
+				{ID: 2, Port: 8083, Enabled: true, Layer4: "tcp"},
 			},
+			nil,
 			0,
 		)
-		if err == nil || !strings.Contains(err.Error(), "转发规则已存在") {
+		if err == nil || !strings.Contains(err.Error(), "监听已存在") {
 			t.Fatalf("expected listen port conflict error, got %v", err)
 		}
 	})
 
-	t.Run("allows same port on different layer4 protocols", func(t *testing.T) {
-		spec, err := normalizeAndValidateRuleSpec(
-			node,
-			"gost",
+	t.Run("rejects unsupported direct protocol", func(t *testing.T) {
+		_, err := normalizeAndValidateRuleSpec(
+			entryNode,
+			nil,
+			"ws",
 			8084,
 			true,
 			0,
 			0,
 			"direct",
 			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
-			&GostConfig{Transport: "tcp"},
-			[]existingRuleConflict{
-				{ID: 2, ListenPort: 8084, Enabled: true, Layer4: "udp"},
-			},
+			false,
+			0,
+			"",
+			0,
+			nil,
+			nil,
 			0,
 		)
-		if err != nil {
-			t.Fatalf("expected no conflict across layer4 protocols, got %v", err)
-		}
-		if spec.GostConfig == nil || spec.GostConfig.Transport != "tcp" {
-			t.Fatalf("unexpected gost config: %#v", spec.GostConfig)
+		if err == nil || !strings.Contains(err.Error(), "仅支持 TCP 或 UDP") {
+			t.Fatalf("expected unsupported protocol validation error, got %v", err)
 		}
 	})
 
-	t.Run("rejects unsupported protocol", func(t *testing.T) {
-		_, err := normalizeAndValidateRuleSpec(
-			node,
-			"legacy",
+	t.Run("accepts tunnel rule", func(t *testing.T) {
+		spec, err := normalizeAndValidateRuleSpec(
+			entryNode,
+			exitNode,
+			"udp",
 			8085,
 			true,
 			0,
 			0,
 			"direct",
-			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
+			[]TargetRequest{{Host: "127.0.0.1", Port: 53, Weight: 1, Enabled: true}},
+			true,
+			exitNode.ID,
+			"quic",
+			9443,
 			nil,
 			nil,
 			0,
 		)
-		if err == nil || !strings.Contains(err.Error(), "仅支持 gost") {
-			t.Fatalf("expected unsupported protocol validation error, got %v", err)
+		if err != nil {
+			t.Fatalf("expected tunnel rule to pass validation, got %v", err)
+		}
+		if !spec.TunnelEnabled || spec.ExitNodeID != exitNode.ID || spec.TunnelProtocol != "quic" || spec.TunnelPort != 9443 {
+			t.Fatalf("unexpected tunnel spec: %#v", spec)
+		}
+	})
+
+	t.Run("rejects tunnel when entry node does not support protocol", func(t *testing.T) {
+		_, err := normalizeAndValidateRuleSpec(
+			entryNode,
+			exitNode,
+			"tcp",
+			8086,
+			true,
+			0,
+			0,
+			"direct",
+			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
+			true,
+			exitNode.ID,
+			"ws",
+			9443,
+			nil,
+			nil,
+			0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "入口节点未声明支持 ws 隧道") {
+			t.Fatalf("expected entry tunnel capability validation error, got %v", err)
+		}
+	})
+
+	t.Run("rejects exit conflict", func(t *testing.T) {
+		_, err := normalizeAndValidateRuleSpec(
+			entryNode,
+			exitNode,
+			"tcp",
+			8086,
+			true,
+			0,
+			0,
+			"direct",
+			[]TargetRequest{{Host: "127.0.0.1", Port: 80, Weight: 1, Enabled: true}},
+			true,
+			exitNode.ID,
+			"ws",
+			9444,
+			nil,
+			[]existingRuleConflict{
+				{ID: 3, Port: 9444, Enabled: true, Layer4: "tcp"},
+			},
+			0,
+		)
+		if err == nil || !strings.Contains(err.Error(), "出口节点端口 9444") {
+			t.Fatalf("expected exit conflict error, got %v", err)
 		}
 	})
 }

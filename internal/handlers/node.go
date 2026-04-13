@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,21 +18,23 @@ import (
 
 // NodeHandler 节点处理器
 type NodeHandler struct {
+	userService       *services.UserService
 	nodeService       *services.NodeService
 	ruleService       *services.RuleService
 	siteConfigService *services.SiteConfigService
 }
 
 // NewNodeHandler 创建节点处理器
-func NewNodeHandler(nodeService *services.NodeService, ruleService *services.RuleService, siteConfigService *services.SiteConfigService) *NodeHandler {
+func NewNodeHandler(userService *services.UserService, nodeService *services.NodeService, ruleService *services.RuleService, siteConfigService *services.SiteConfigService) *NodeHandler {
 	return &NodeHandler{
+		userService:       userService,
 		nodeService:       nodeService,
 		ruleService:       ruleService,
 		siteConfigService: siteConfigService,
 	}
 }
 
-// GetNodes 获取节点列表（所有用户看到相同列表）
+// GetNodes 获取当前用户可见的节点列表
 func (h *NodeHandler) GetNodes(c *gin.Context) {
 	requestID := c.GetString("request_id")
 	userID := middleware.GetUserID(c)
@@ -43,8 +46,13 @@ func (h *NodeHandler) GetNodes(c *gin.Context) {
 
 	log.Debug("GetNodes request", "page", page, "page_size", pageSize, "status", status, "user_id", userID)
 
-	// 所有用户看到相同的节点列表
-	nodes, total := h.nodeService.ListNodes(page, pageSize, status)
+	user, err := h.userService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在"})
+		return
+	}
+
+	nodes, total := h.nodeService.ListNodesForUser(user.UserGroupID, page, pageSize, status)
 
 	type NodeListItem struct {
 		models.Node
@@ -75,6 +83,7 @@ func (h *NodeHandler) GetNodes(c *gin.Context) {
 // GetNode 获取节点详情
 func (h *NodeHandler) GetNode(c *gin.Context) {
 	requestID := c.GetString("request_id")
+	userID := middleware.GetUserID(c)
 	log := logger.Log.With("request_id", requestID, "component", "node")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -83,6 +92,30 @@ func (h *NodeHandler) GetNode(c *gin.Context) {
 	node, err := h.nodeService.GetNodeByID(uint(id))
 	if err != nil {
 		logger.Error("GetNode: node not found", err, "node_id", id, "request_id", requestID)
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "节点不存在"})
+		return
+	}
+
+	user, err := h.userService.GetUserByID(userID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户不存在"})
+		return
+	}
+
+	allowedGroups, err := h.nodeService.GetAllowedGroups(node.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取节点授权失败"})
+		return
+	}
+
+	allowed := false
+	for _, groupID := range allowedGroups {
+		if groupID == user.UserGroupID {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
 		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "节点不存在"})
 		return
 	}
@@ -286,27 +319,25 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		Weight  int    `json:"weight"`
 		Enabled bool   `json:"enabled"`
 	}
-	type NodeGostConfig struct {
-		Transport string `json:"transport"`
-		TLS       bool   `json:"tls"`
-		Chain     string `json:"chain"`
-		Timeout   int    `json:"timeout"`
-	}
 	type NodeRule struct {
-		ID         uint            `json:"id"`
-		Name       string          `json:"name"`
-		Protocol   string          `json:"protocol"`
-		ListenPort int             `json:"listen_port"`
-		Mode       string          `json:"mode"`
-		Targets    []NodeTarget    `json:"targets"`
-		SpeedLimit int64           `json:"speed_limit"`
-		Enabled    bool            `json:"enabled"`
-		GostConfig *NodeGostConfig `json:"gost_config,omitempty"`
+		ID             uint         `json:"id"`
+		Name           string       `json:"name"`
+		Protocol       string       `json:"protocol"`
+		ListenPort     int          `json:"listen_port"`
+		Mode           string       `json:"mode"`
+		Targets        []NodeTarget `json:"targets"`
+		SpeedLimit     int64        `json:"speed_limit"`
+		Enabled        bool         `json:"enabled"`
+		TunnelRole     string       `json:"tunnel_role,omitempty"`
+		TunnelProtocol string       `json:"tunnel_protocol,omitempty"`
+		TunnelRemote   string       `json:"tunnel_remote,omitempty"`
+		ReportTraffic  bool         `json:"report_traffic"`
 	}
 
 	nodeRules := make([]NodeRule, 0, len(rules))
 	for _, r := range rules {
-		if !strings.EqualFold(r.Protocol, "gost") {
+		ruleProtocol := services.NormalizeDirectProtocol(r.Protocol)
+		if !services.NodeSupportsDirectProtocol([]string(node.Protocols), ruleProtocol) {
 			continue
 		}
 		targets, _ := h.ruleService.ListTargets(r.ID, true)
@@ -321,27 +352,60 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		}
 
 		nr := NodeRule{
-			ID:         r.ID,
-			Name:       r.Name,
-			Protocol:   r.Protocol,
-			ListenPort: r.ListenPort,
-			Mode:       r.Mode,
-			Targets:    nodeTargets,
-			SpeedLimit: r.SpeedLimit,
-			Enabled:    r.Enabled,
+			ID:            r.ID,
+			Name:          r.Name,
+			Protocol:      ruleProtocol,
+			ListenPort:    r.ListenPort,
+			Mode:          r.Mode,
+			Targets:       nodeTargets,
+			SpeedLimit:    r.SpeedLimit,
+			Enabled:       r.Enabled,
+			ReportTraffic: true,
 		}
-
-		cfg, _ := h.ruleService.GetGostRule(r.ID)
-		if cfg != nil {
-			nr.GostConfig = &NodeGostConfig{
-				Transport: cfg.Transport,
-				TLS:       cfg.TLS,
-				Chain:     cfg.Chain,
-				Timeout:   cfg.Timeout,
+		if r.TunnelEnabled {
+			tunnelProtocol := services.NormalizeTunnelProtocol(r.TunnelProtocol)
+			if !services.NodeSupportsTunnelProtocol([]string(node.Protocols), tunnelProtocol) {
+				continue
 			}
+			exitNode, err := h.nodeService.GetNodeByID(r.ExitNodeID)
+			if err != nil {
+				continue
+			}
+			if !services.NodeSupportsTunnelProtocol([]string(exitNode.Protocols), tunnelProtocol) {
+				continue
+			}
+			nr.TunnelRole = "entry"
+			nr.TunnelProtocol = tunnelProtocol
+			nr.TunnelRemote = fmt.Sprintf("%s:%d", exitNode.Host, r.TunnelPort)
 		}
-
 		nodeRules = append(nodeRules, nr)
+	}
+
+	exitRules, err := h.ruleService.ListRulesByExitNode(req.NodeID, true)
+	if err != nil {
+		logger.Error("NodeConfig: load exit rules failed", err, "node_id", req.NodeID, "request_id", requestID)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "读取隧道规则失败"})
+		return
+	}
+	for _, r := range exitRules {
+		tunnelProtocol := services.NormalizeTunnelProtocol(r.TunnelProtocol)
+		if !r.TunnelEnabled {
+			continue
+		}
+		if !services.NodeSupportsTunnelProtocol([]string(node.Protocols), tunnelProtocol) {
+			continue
+		}
+		nodeRules = append(nodeRules, NodeRule{
+			ID:             r.ID,
+			Name:           r.Name + " (隧道出口)",
+			Protocol:       services.NormalizeDirectProtocol(r.Protocol),
+			ListenPort:     r.TunnelPort,
+			Mode:           "direct",
+			Enabled:        r.Enabled,
+			TunnelRole:     "exit",
+			TunnelProtocol: tunnelProtocol,
+			ReportTraffic:  false,
+		})
 	}
 
 	rulesJSON, err := json.Marshal(nodeRules)

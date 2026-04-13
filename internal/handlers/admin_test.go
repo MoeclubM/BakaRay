@@ -1750,7 +1750,7 @@ func TestCreateNode_Success(t *testing.T) {
 		"port":          8080,
 		"secret":        "secret123",
 		"node_group_id": 1,
-		"protocols":     []string{"gost"},
+		"protocols":     []string{"tcp", "quic"},
 		"multiplier":    1.0,
 		"region":        "CN",
 	}

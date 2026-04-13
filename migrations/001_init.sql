@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `nodes` (
     `secret` VARCHAR(128) NOT NULL COMMENT '通信密钥',
     `status` VARCHAR(20) NOT NULL DEFAULT 'offline' COMMENT 'online/offline',
     `node_group_id` BIGINT UNSIGNED DEFAULT 0,
-    `protocols` VARCHAR(255) DEFAULT 'gost' COMMENT '支持的协议',
+    `protocols` VARCHAR(255) DEFAULT '["tcp","udp","tls","mtls","ws","mws","wss","mwss","grpc","h2","h2c","kcp","quic"]' COMMENT '支持的协议（JSON 数组）',
     `multiplier` DECIMAL(10,2) NOT NULL DEFAULT 1.00 COMMENT '倍率',
     `region` VARCHAR(64) DEFAULT '' COMMENT '节点地区',
     `last_seen` DATETIME DEFAULT NULL,
@@ -68,13 +68,17 @@ CREATE TABLE IF NOT EXISTS `forwarding_rules` (
     `node_id` BIGINT UNSIGNED NOT NULL,
     `user_id` BIGINT UNSIGNED NOT NULL,
     `name` VARCHAR(128) NOT NULL,
-    `protocol` VARCHAR(20) NOT NULL COMMENT 'gost',
+    `protocol` VARCHAR(20) NOT NULL COMMENT 'tcp/udp',
     `enabled` TINYINT(1) NOT NULL DEFAULT 1,
     `traffic_used` BIGINT NOT NULL DEFAULT 0 COMMENT '已用流量（字节）',
     `traffic_limit` BIGINT NOT NULL DEFAULT 0 COMMENT '流量限制（字节）',
     `speed_limit` BIGINT NOT NULL DEFAULT 0 COMMENT '限速（kbps）',
     `mode` VARCHAR(20) NOT NULL DEFAULT 'direct' COMMENT 'direct/rr/lb',
     `listen_port` INT NOT NULL,
+    `tunnel_enabled` TINYINT(1) NOT NULL DEFAULT 0,
+    `exit_node_id` BIGINT UNSIGNED DEFAULT 0,
+    `tunnel_protocol` VARCHAR(20) DEFAULT '',
+    `tunnel_port` INT DEFAULT 0,
     `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
     `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX `idx_node` (`node_id`),
@@ -94,19 +98,6 @@ CREATE TABLE IF NOT EXISTS `targets` (
     INDEX `idx_rule` (`rule_id`),
     INDEX `idx_enabled` (`enabled`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='转发目标表';
-
--- gost 协议专用配置表
-CREATE TABLE IF NOT EXISTS `gost_rules` (
-    `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    `rule_id` BIGINT UNSIGNED NOT NULL UNIQUE,
-    `transport` VARCHAR(20) DEFAULT 'tcp' COMMENT 'tcp/udp/quic',
-    `tls` TINYINT(1) DEFAULT 0,
-    `chain` VARCHAR(255) DEFAULT '' COMMENT '代理链配置',
-    `timeout` INT DEFAULT 0 COMMENT '超时（秒）',
-    `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
-    `updated_at` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX `idx_rule` (`rule_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='gost协议配置表';
 
 -- 套餐表
 CREATE TABLE IF NOT EXISTS `packages` (

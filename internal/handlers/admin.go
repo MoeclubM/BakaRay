@@ -140,15 +140,17 @@ func (h *AdminHandler) GetAdminNodeDetail(c *gin.Context) {
 
 	probe, _ := h.nodeService.GetProbeData(uint(id))
 	diagnostics, _ := h.nodeService.GetDiagnostics(uint(id))
+	allowedGroupIDs, _ := h.nodeService.GetAllowedGroups(uint(id))
 
 	log.Info("GetAdminNodeDetail success", "node_id", id, "node_name", node.Name)
 
 	c.JSON(http.StatusOK, gin.H{
 		"code": 0,
 		"data": gin.H{
-			"node":        node,
-			"probe":       probe,
-			"diagnostics": diagnostics,
+			"node":              node,
+			"probe":             probe,
+			"diagnostics":       diagnostics,
+			"allowed_group_ids": allowedGroupIDs,
 		},
 	})
 }
@@ -169,10 +171,50 @@ func (h *AdminHandler) UpdateNode(c *gin.Context) {
 
 	log.Debug("UpdateNode request", "node_id", id)
 
-	if err := h.nodeService.UpdateNode(uint(id), updates); err != nil {
-		logger.Error("UpdateNode: failed to update node", err, "node_id", id, "request_id", requestID, "user_id", userID)
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败"})
+	rawAllowedGroupIDs, hasAllowedGroupIDs := updates["allowed_group_ids"]
+	delete(updates, "allowed_group_ids")
+
+	if len(updates) > 0 {
+		if err := h.nodeService.UpdateNode(uint(id), updates); err != nil {
+			logger.Error("UpdateNode: failed to update node", err, "node_id", id, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新失败"})
+			return
+		}
+	} else if _, err := h.nodeService.GetNodeByID(uint(id)); err != nil {
+		logger.Error("UpdateNode: node not found", err, "node_id", id, "request_id", requestID, "user_id", userID)
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "message": "节点不存在"})
 		return
+	}
+
+	if hasAllowedGroupIDs {
+		groupIDs := make([]uint, 0)
+		switch values := rawAllowedGroupIDs.(type) {
+		case []interface{}:
+			for _, value := range values {
+				switch typed := value.(type) {
+				case float64:
+					if typed > 0 {
+						groupIDs = append(groupIDs, uint(typed))
+					}
+				case int:
+					if typed > 0 {
+						groupIDs = append(groupIDs, uint(typed))
+					}
+				case uint:
+					if typed > 0 {
+						groupIDs = append(groupIDs, typed)
+					}
+				}
+			}
+		case []uint:
+			groupIDs = values
+		}
+
+		if err := h.nodeService.SetAllowedGroups(uint(id), groupIDs); err != nil {
+			logger.Error("UpdateNode: failed to update allowed groups", err, "node_id", id, "request_id", requestID, "user_id", userID)
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "更新节点授权失败"})
+			return
+		}
 	}
 
 	log.Info("UpdateNode success", "node_id", id)
@@ -440,14 +482,17 @@ func (h *AdminHandler) GetAdminNodes(c *gin.Context) {
 	nodes, total := h.nodeService.ListNodes(page, pageSize, status)
 	type AdminNodeListItem struct {
 		models.Node
-		Diagnostics []models.NodeDiagnostic `json:"diagnostics"`
+		Diagnostics     []models.NodeDiagnostic `json:"diagnostics"`
+		AllowedGroupIDs []uint                  `json:"allowed_group_ids"`
 	}
 	items := make([]AdminNodeListItem, 0, len(nodes))
 	for _, node := range nodes {
 		diagnostics, _ := h.nodeService.GetDiagnostics(node.ID)
+		allowedGroupIDs, _ := h.nodeService.GetAllowedGroups(node.ID)
 		items = append(items, AdminNodeListItem{
-			Node:        node,
-			Diagnostics: diagnostics,
+			Node:            node,
+			Diagnostics:     diagnostics,
+			AllowedGroupIDs: allowedGroupIDs,
 		})
 	}
 

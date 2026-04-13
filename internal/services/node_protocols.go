@@ -6,8 +6,42 @@ import (
 	"bakaray/internal/models"
 )
 
+var defaultNodeProtocols = []string{
+	"tcp",
+	"udp",
+	"tls",
+	"mtls",
+	"ws",
+	"mws",
+	"wss",
+	"mwss",
+	"grpc",
+	"h2",
+	"h2c",
+	"kcp",
+	"quic",
+}
+
 var supportedNodeProtocols = map[string]struct{}{
-	"gost": {},
+	"tcp":  {},
+	"udp":  {},
+	"tls":  {},
+	"mtls": {},
+	"ws":   {},
+	"mws":  {},
+	"wss":  {},
+	"mwss": {},
+	"grpc": {},
+	"h2":   {},
+	"h2c":  {},
+	"kcp":  {},
+	"quic": {},
+}
+
+func SupportedNodeProtocols() []string {
+	out := make([]string, len(defaultNodeProtocols))
+	copy(out, defaultNodeProtocols)
+	return out
 }
 
 // NormalizeNodeProtocols keeps only supported node capabilities and applies the
@@ -32,14 +66,68 @@ func NormalizeNodeProtocols(protocols []string) models.StringSlice {
 	}
 
 	if len(out) == 0 {
-		return models.StringSlice{"gost"}
+		return models.StringSlice(SupportedNodeProtocols())
 	}
 
 	return models.StringSlice(out)
 }
 
-func NodeSupportsProtocol(protocols []string, protocol string) bool {
-	protocol = strings.ToLower(strings.TrimSpace(protocol))
+func NormalizeDirectProtocol(protocol string) string {
+	return strings.ToLower(strings.TrimSpace(protocol))
+}
+
+func NormalizeTunnelProtocol(protocol string) string {
+	return strings.ToLower(strings.TrimSpace(protocol))
+}
+
+func IsDirectProtocol(protocol string) bool {
+	switch NormalizeDirectProtocol(protocol) {
+	case "tcp", "udp":
+		return true
+	default:
+		return false
+	}
+}
+
+func IsTunnelProtocol(protocol string) bool {
+	_, ok := supportedNodeProtocols[NormalizeTunnelProtocol(protocol)]
+	return ok && !IsDirectProtocol(protocol)
+}
+
+func DirectProtocolNetwork(protocol string) string {
+	if NormalizeDirectProtocol(protocol) == "udp" {
+		return "udp"
+	}
+	return "tcp"
+}
+
+func TunnelProtocolNetwork(protocol string) string {
+	switch NormalizeTunnelProtocol(protocol) {
+	case "kcp", "quic":
+		return "udp"
+	default:
+		return "tcp"
+	}
+}
+
+func NodeSupportsDirectProtocol(protocols []string, protocol string) bool {
+	protocol = NormalizeDirectProtocol(protocol)
+	if !IsDirectProtocol(protocol) {
+		return false
+	}
+	for _, item := range NormalizeNodeProtocols(protocols) {
+		if item == protocol {
+			return true
+		}
+	}
+	return false
+}
+
+func NodeSupportsTunnelProtocol(protocols []string, protocol string) bool {
+	protocol = NormalizeTunnelProtocol(protocol)
+	if !IsTunnelProtocol(protocol) {
+		return false
+	}
 	for _, item := range NormalizeNodeProtocols(protocols) {
 		if item == protocol {
 			return true

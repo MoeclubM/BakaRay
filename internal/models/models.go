@@ -42,7 +42,7 @@ type Node struct {
 	Secret      string      `json:"-" gorm:"size:128;not null"`
 	Status      string      `json:"status" gorm:"size:20;default:'offline'"` // online, offline
 	NodeGroupID uint        `json:"node_group_id"`
-	Protocols   StringSlice `json:"protocols" gorm:"type:text"` // JSON数组：["gost"]
+	Protocols   StringSlice `json:"protocols" gorm:"type:text"` // JSON数组：["tcp","udp","ws","grpc",...]
 	Multiplier  float64     `json:"multiplier" gorm:"default:1"`
 	Region      string      `json:"region" gorm:"size:64"`
 	LastSeen    *time.Time  `json:"last_seen"`
@@ -69,19 +69,23 @@ type NodeGroup struct {
 
 // ForwardingRule 转发规则表
 type ForwardingRule struct {
-	ID           uint      `json:"id" gorm:"primaryKey"`
-	NodeID       uint      `json:"node_id" gorm:"index;not null"`
-	UserID       uint      `json:"user_id" gorm:"index;not null"`
-	Name         string    `json:"name" gorm:"size:128;not null"`
-	Protocol     string    `json:"protocol" gorm:"size:20;not null"` // gost
-	Enabled      bool      `json:"enabled" gorm:"default:true"`
-	TrafficUsed  int64     `json:"traffic_used" gorm:"default:0"`        // 单位：字节
-	TrafficLimit int64     `json:"traffic_limit" gorm:"default:0"`       // 单位：字节
-	SpeedLimit   int64     `json:"speed_limit" gorm:"default:0"`         // 单位：kbps
-	Mode         string    `json:"mode" gorm:"size:20;default:'direct'"` // direct, rr, lb
-	ListenPort   int       `json:"listen_port" gorm:"not null"`
-	CreatedAt    time.Time `json:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at"`
+	ID             uint      `json:"id" gorm:"primaryKey"`
+	NodeID         uint      `json:"node_id" gorm:"index;not null"`
+	UserID         uint      `json:"user_id" gorm:"index;not null"`
+	Name           string    `json:"name" gorm:"size:128;not null"`
+	Protocol       string    `json:"protocol" gorm:"size:20;not null"` // tcp, udp
+	Enabled        bool      `json:"enabled" gorm:"default:true"`
+	TrafficUsed    int64     `json:"traffic_used" gorm:"default:0"`        // 单位：字节
+	TrafficLimit   int64     `json:"traffic_limit" gorm:"default:0"`       // 单位：字节
+	SpeedLimit     int64     `json:"speed_limit" gorm:"default:0"`         // 单位：kbps
+	Mode           string    `json:"mode" gorm:"size:20;default:'direct'"` // direct, rr, lb
+	ListenPort     int       `json:"listen_port" gorm:"not null"`
+	TunnelEnabled  bool      `json:"tunnel_enabled" gorm:"default:false"`
+	ExitNodeID     uint      `json:"exit_node_id" gorm:"index"`
+	TunnelProtocol string    `json:"tunnel_protocol" gorm:"size:20"`
+	TunnelPort     int       `json:"tunnel_port"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // Target 转发目标表
@@ -93,18 +97,6 @@ type Target struct {
 	Weight    int       `json:"weight" gorm:"default:1"`
 	Enabled   bool      `json:"enabled" gorm:"default:true"`
 	CreatedAt time.Time `json:"created_at"`
-}
-
-// GostRule gost 协议专用配置
-type GostRule struct {
-	ID        uint      `json:"id" gorm:"primaryKey"`
-	RuleID    uint      `json:"rule_id" gorm:"uniqueIndex;not null"`
-	Transport string    `json:"transport" gorm:"size:20;default:'tcp'"` // tcp, udp, quic
-	TLS       bool      `json:"tls" gorm:"default:false"`
-	Chain     string    `json:"chain" gorm:"size:255"`    // 代理链配置
-	Timeout   int       `json:"timeout" gorm:"default:0"` // 秒
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // Package 套餐表

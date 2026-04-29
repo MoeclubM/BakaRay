@@ -100,19 +100,9 @@ func (s *RuleService) ListTargets(ruleID uint, enabledOnly bool) ([]models.Targe
 	return targets, nil
 }
 
-// GetTargets 获取规则的目标列表
-func (s *RuleService) GetTargets(ruleID uint) ([]models.Target, error) {
-	return s.ListTargets(ruleID, true)
-}
-
 // AddTarget 添加转发目标
 func (s *RuleService) AddTarget(target *models.Target) error {
 	return s.db.Create(target).Error
-}
-
-// DeleteTarget 删除转发目标
-func (s *RuleService) DeleteTarget(id uint) error {
-	return s.db.Delete(&models.Target{}, id).Error
 }
 
 // DeleteTargetsByRuleID 删除规则的所有目标
@@ -122,24 +112,6 @@ func (s *RuleService) DeleteTargetsByRuleID(ruleID uint) error {
 
 // MaxTrafficLimit 单次更新流量上限（防止异常大流量），单位：字节
 const MaxTrafficLimit int64 = 1024 * 1024 * 1024 * 10 // 10GB
-
-// UpdateTrafficUsed 更新已用流量（带上限检查）
-func (s *RuleService) UpdateTrafficUsed(ruleID uint, bytes int64) error {
-	// 检查并限制单次更新量
-	if bytes > MaxTrafficLimit {
-		bytes = MaxTrafficLimit
-	}
-	if bytes < 0 {
-		bytes = 0
-	}
-
-	// 更新流量，限制不超过 traffic_limit（如果有设置）
-	return s.db.Model(&models.ForwardingRule{}).Where("id = ? AND (traffic_limit = 0 OR traffic_used < traffic_limit)", ruleID).
-		Update("traffic_used", gorm.Expr(
-			"CASE WHEN COALESCE(traffic_limit, 0) = 0 THEN traffic_used + ? WHEN traffic_used + ? > traffic_limit THEN traffic_limit ELSE traffic_used + ? END",
-			bytes, bytes, bytes,
-		)).Error
-}
 
 // UpdateTrafficUsedWithDisable 更新流量并自动禁用超限规则
 func (s *RuleService) UpdateTrafficUsedWithDisable(ruleID uint, bytes int64) (disabled bool, err error) {

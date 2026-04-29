@@ -178,13 +178,3 @@ func GetUserID(c *gin.Context) uint {
 	}
 	return 0
 }
-
-// GetUserRole 从上下文获取用户角色
-func GetUserRole(c *gin.Context) string {
-	if role, exists := c.Get(UserRoleKey); exists {
-		if r, ok := role.(string); ok {
-			return r
-		}
-	}
-	return ""
-}

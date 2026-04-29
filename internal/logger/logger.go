@@ -34,24 +34,8 @@ func Init(level string) error {
 	return nil
 }
 
-func WithRequestID(requestID string) *slog.Logger {
-	return Log.With("request_id", requestID)
-}
-
-func WithUserID(userID uint) *slog.Logger {
-	return Log.With("user_id", userID)
-}
-
-func WithComponent(component string) *slog.Logger {
-	return Log.With("component", component)
-}
-
 func WithContext(requestID string, userID uint, component string) *slog.Logger {
 	return Log.With("request_id", requestID, "user_id", userID, "component", component)
-}
-
-func WithAdminContext(requestID string, userID uint, component string) *slog.Logger {
-	return WithContext(requestID, userID, component)
 }
 
 func Error(msg string, err error, args ...any) {

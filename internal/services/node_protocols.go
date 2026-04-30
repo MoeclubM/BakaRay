@@ -20,22 +20,24 @@ var defaultNodeProtocols = []string{
 	"h2c",
 	"kcp",
 	"quic",
+	"realm",
 }
 
 var supportedNodeProtocols = map[string]struct{}{
-	"tcp":  {},
-	"udp":  {},
-	"tls":  {},
-	"mtls": {},
-	"ws":   {},
-	"mws":  {},
-	"wss":  {},
-	"mwss": {},
-	"grpc": {},
-	"h2":   {},
-	"h2c":  {},
-	"kcp":  {},
-	"quic": {},
+	"tcp":   {},
+	"udp":   {},
+	"tls":   {},
+	"mtls":  {},
+	"ws":    {},
+	"mws":   {},
+	"wss":   {},
+	"mwss":  {},
+	"grpc":  {},
+	"h2":    {},
+	"h2c":   {},
+	"kcp":   {},
+	"quic":  {},
+	"realm": {},
 }
 
 func SupportedNodeProtocols() []string {

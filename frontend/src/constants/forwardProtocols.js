@@ -14,7 +14,8 @@ export const tunnelProtocolOptions = [
   { title: "H2", value: "h2", description: "通过 HTTP/2 承载隧道流量" },
   { title: "H2C", value: "h2c", description: "通过明文 HTTP/2 承载隧道流量" },
   { title: "KCP", value: "kcp", description: "通过 KCP 承载隧道流量" },
-  { title: "QUIC", value: "quic", description: "通过 QUIC 承载隧道流量" }
+  { title: "QUIC", value: "quic", description: "通过 QUIC 承载隧道流量" },
+  { title: "Realm", value: "realm", description: "通过 Realm 承载隧道流量" }
 ]
 
 export const nodeCapabilityOptions = [

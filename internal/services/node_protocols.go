@@ -74,16 +74,12 @@ func NormalizeNodeProtocols(protocols []string) models.StringSlice {
 	return models.StringSlice(out)
 }
 
-func NormalizeDirectProtocol(protocol string) string {
-	return strings.ToLower(strings.TrimSpace(protocol))
-}
-
-func NormalizeTunnelProtocol(protocol string) string {
+func NormalizeProtocol(protocol string) string {
 	return strings.ToLower(strings.TrimSpace(protocol))
 }
 
 func IsDirectProtocol(protocol string) bool {
-	switch NormalizeDirectProtocol(protocol) {
+	switch NormalizeProtocol(protocol) {
 	case "tcp", "udp":
 		return true
 	default:
@@ -92,19 +88,19 @@ func IsDirectProtocol(protocol string) bool {
 }
 
 func IsTunnelProtocol(protocol string) bool {
-	_, ok := supportedNodeProtocols[NormalizeTunnelProtocol(protocol)]
+	_, ok := supportedNodeProtocols[NormalizeProtocol(protocol)]
 	return ok && !IsDirectProtocol(protocol)
 }
 
 func DirectProtocolNetwork(protocol string) string {
-	if NormalizeDirectProtocol(protocol) == "udp" {
+	if NormalizeProtocol(protocol) == "udp" {
 		return "udp"
 	}
 	return "tcp"
 }
 
 func TunnelProtocolNetwork(protocol string) string {
-	switch NormalizeTunnelProtocol(protocol) {
+	switch NormalizeProtocol(protocol) {
 	case "kcp", "quic":
 		return "udp"
 	default:
@@ -113,7 +109,7 @@ func TunnelProtocolNetwork(protocol string) string {
 }
 
 func NodeSupportsDirectProtocol(protocols []string, protocol string) bool {
-	protocol = NormalizeDirectProtocol(protocol)
+	protocol = NormalizeProtocol(protocol)
 	if !IsDirectProtocol(protocol) {
 		return false
 	}
@@ -126,7 +122,7 @@ func NodeSupportsDirectProtocol(protocols []string, protocol string) bool {
 }
 
 func NodeSupportsTunnelProtocol(protocols []string, protocol string) bool {
-	protocol = NormalizeTunnelProtocol(protocol)
+	protocol = NormalizeProtocol(protocol)
 	if !IsTunnelProtocol(protocol) {
 		return false
 	}

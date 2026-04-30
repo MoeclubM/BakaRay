@@ -45,7 +45,7 @@ func (h *RuleHandler) GetRules(c *gin.Context) {
 	items := make([]models.ForwardingRule, 0, len(rules))
 	for _, rule := range rules {
 		ruleView := rule
-		ruleView.Protocol = services.NormalizeDirectProtocol(rule.Protocol)
+		ruleView.Protocol = services.NormalizeProtocol(rule.Protocol)
 		items = append(items, ruleView)
 	}
 
@@ -269,7 +269,7 @@ func (h *RuleHandler) GetRule(c *gin.Context) {
 	targets, _ := h.ruleService.ListTargets(rule.ID, false)
 
 	ruleView := *rule
-	ruleView.Protocol = services.NormalizeDirectProtocol(rule.Protocol)
+	ruleView.Protocol = services.NormalizeProtocol(rule.Protocol)
 
 	log.Info("GetRule success", "rule_id", id, "rule_name", rule.Name)
 
@@ -440,7 +440,7 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 	spec, err := normalizeAndValidateRuleSpec(
 		entryNode,
 		exitNode,
-		coalesceString(req.Protocol, services.NormalizeDirectProtocol(rule.Protocol)),
+		coalesceString(req.Protocol, services.NormalizeProtocol(rule.Protocol)),
 		valueOrDefaultInt(req.ListenPort, rule.ListenPort),
 		enabledValue,
 		trafficLimitValue,
@@ -504,7 +504,7 @@ func (h *RuleHandler) UpdateRule(c *gin.Context) {
 
 func normalizeAndValidateRuleSpec(entryNode *models.Node, exitNode *models.Node, protocol string, listenPort int, enabled bool, trafficLimit int64, speedLimit int64, mode string, targets []TargetRequest, tunnelEnabled bool, exitNodeID uint, tunnelProtocol string, tunnelPort int, entryRules []existingRuleConflict, exitRules []existingRuleConflict, currentRuleID uint) (*normalizedRuleSpec, error) {
 	spec := &normalizedRuleSpec{
-		Protocol:       services.NormalizeDirectProtocol(protocol),
+		Protocol:       services.NormalizeProtocol(protocol),
 		ListenPort:     listenPort,
 		Enabled:        enabled,
 		TrafficLimit:   maxInt64(0, trafficLimit),
@@ -513,7 +513,7 @@ func normalizeAndValidateRuleSpec(entryNode *models.Node, exitNode *models.Node,
 		Targets:        sanitizeTargets(targets),
 		TunnelEnabled:  tunnelEnabled,
 		ExitNodeID:     exitNodeID,
-		TunnelProtocol: services.NormalizeTunnelProtocol(tunnelProtocol),
+		TunnelProtocol: services.NormalizeProtocol(tunnelProtocol),
 		TunnelPort:     tunnelPort,
 	}
 
@@ -623,7 +623,7 @@ func (h *RuleHandler) loadRuleConflicts(nodeID uint) ([]existingRuleConflict, er
 
 	out := make([]existingRuleConflict, 0, len(entryRules)+len(exitRules))
 	for _, rule := range entryRules {
-		ruleProtocol := services.NormalizeDirectProtocol(rule.Protocol)
+		ruleProtocol := services.NormalizeProtocol(rule.Protocol)
 		if !services.IsDirectProtocol(ruleProtocol) {
 			continue
 		}

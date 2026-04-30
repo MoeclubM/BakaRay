@@ -125,7 +125,7 @@ func (h *AdminHandler) UpdateSiteConfig(c *gin.Context) {
 func (h *AdminHandler) GetAdminNodeDetail(c *gin.Context) {
 	requestID := c.GetString("request_id")
 	userID := middleware.GetUserID(c)
-	log := logger.WithAdminContext(requestID, userID, "admin")
+	log := logger.WithContext(requestID, userID, "admin")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 
@@ -159,7 +159,7 @@ func (h *AdminHandler) GetAdminNodeDetail(c *gin.Context) {
 func (h *AdminHandler) UpdateNode(c *gin.Context) {
 	requestID := c.GetString("request_id")
 	userID := middleware.GetUserID(c)
-	log := logger.WithAdminContext(requestID, userID, "admin")
+	log := logger.WithContext(requestID, userID, "admin")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 	var updates map[string]interface{}
@@ -226,7 +226,7 @@ func (h *AdminHandler) UpdateNode(c *gin.Context) {
 func (h *AdminHandler) DeleteNode(c *gin.Context) {
 	requestID := c.GetString("request_id")
 	userID := middleware.GetUserID(c)
-	log := logger.WithAdminContext(requestID, userID, "admin")
+	log := logger.WithContext(requestID, userID, "admin")
 
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 32)
 

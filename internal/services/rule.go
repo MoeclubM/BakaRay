@@ -100,14 +100,14 @@ func (s *RuleService) ListTargets(ruleID uint, enabledOnly bool) ([]models.Targe
 	return targets, nil
 }
 
-// GetTargets 获取规则的目标列表
-func (s *RuleService) GetTargets(ruleID uint) ([]models.Target, error) {
-	return s.ListTargets(ruleID, true)
-}
-
 // AddTarget 添加转发目标
 func (s *RuleService) AddTarget(target *models.Target) error {
 	return s.db.Create(target).Error
+}
+
+// GetTargets 获取规则的目标列表
+func (s *RuleService) GetTargets(ruleID uint) ([]models.Target, error) {
+	return s.ListTargets(ruleID, true)
 }
 
 // DeleteTarget 删除转发目标

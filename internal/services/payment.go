@@ -193,11 +193,6 @@ func (s *PaymentService) GetOrderByID(id uint) (*models.Order, error) {
 	return &order, nil
 }
 
-// AddUserBalance 增加用户余额
-func (s *PaymentService) AddUserBalance(userID uint, amount int64) error {
-	return s.db.Model(&models.User{}).Where("id = ?", userID).Update("balance", gorm.Expr("balance + ?", amount)).Error
-}
-
 // UpdateOrderStatus 更新订单状态
 func (s *PaymentService) UpdateOrderStatus(tradeNo string, status string) error {
 	return s.db.Model(&models.Order{}).Where("trade_no = ?", tradeNo).Update("status", status).Error

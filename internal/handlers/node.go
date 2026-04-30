@@ -336,7 +336,7 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 
 	nodeRules := make([]NodeRule, 0, len(rules))
 	for _, r := range rules {
-		ruleProtocol := services.NormalizeDirectProtocol(r.Protocol)
+		ruleProtocol := services.NormalizeProtocol(r.Protocol)
 		if !services.NodeSupportsDirectProtocol([]string(node.Protocols), ruleProtocol) {
 			continue
 		}
@@ -363,7 +363,7 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 			ReportTraffic: true,
 		}
 		if r.TunnelEnabled {
-			tunnelProtocol := services.NormalizeTunnelProtocol(r.TunnelProtocol)
+			tunnelProtocol := services.NormalizeProtocol(r.TunnelProtocol)
 			if !services.NodeSupportsTunnelProtocol([]string(node.Protocols), tunnelProtocol) {
 				continue
 			}
@@ -388,7 +388,7 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		return
 	}
 	for _, r := range exitRules {
-		tunnelProtocol := services.NormalizeTunnelProtocol(r.TunnelProtocol)
+		tunnelProtocol := services.NormalizeProtocol(r.TunnelProtocol)
 		if !r.TunnelEnabled {
 			continue
 		}
@@ -398,7 +398,7 @@ func (h *NodeHandler) NodeConfig(c *gin.Context) {
 		nodeRules = append(nodeRules, NodeRule{
 			ID:             r.ID,
 			Name:           r.Name + " (隧道出口)",
-			Protocol:       services.NormalizeDirectProtocol(r.Protocol),
+			Protocol:       services.NormalizeProtocol(r.Protocol),
 			ListenPort:     r.TunnelPort,
 			Mode:           "direct",
 			Enabled:        r.Enabled,

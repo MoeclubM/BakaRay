@@ -31,8 +31,8 @@ func TestProtocolCategories(t *testing.T) {
 	if IsDirectProtocol("ws") {
 		t.Fatal("did not expect ws to be treated as direct protocol")
 	}
-	if !IsTunnelProtocol("grpc") || !IsTunnelProtocol("quic") {
-		t.Fatal("expected grpc/quic to be tunnel protocols")
+	if !IsTunnelProtocol("grpc") || !IsTunnelProtocol("quic") || !IsTunnelProtocol("realm") {
+		t.Fatal("expected grpc/quic/realm to be tunnel protocols")
 	}
 	if IsTunnelProtocol("udp") {
 		t.Fatal("did not expect udp to be treated as tunnel protocol")
@@ -45,6 +45,9 @@ func TestNodeSupportsProtocol(t *testing.T) {
 	}
 	if !NodeSupportsTunnelProtocol([]string{"quic"}, "quic") {
 		t.Fatal("expected quic tunnel forwarding to be supported")
+	}
+	if !NodeSupportsTunnelProtocol([]string{"realm"}, "realm") {
+		t.Fatal("expected realm tunnel forwarding to be supported")
 	}
 	if NodeSupportsDirectProtocol([]string{"tcp"}, "legacy") || NodeSupportsTunnelProtocol([]string{"tcp"}, "legacy") {
 		t.Fatal("did not expect legacy protocol to be supported")

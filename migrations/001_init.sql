@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS `nodes` (
     `secret` VARCHAR(128) NOT NULL COMMENT '通信密钥',
     `status` VARCHAR(20) NOT NULL DEFAULT 'offline' COMMENT 'online/offline',
     `node_group_id` BIGINT UNSIGNED DEFAULT 0,
-    `protocols` VARCHAR(255) DEFAULT '["tcp","udp","tls","mtls","ws","mws","wss","mwss","grpc","h2","h2c","kcp","quic"]' COMMENT '支持的协议（JSON 数组）',
+    `protocols` VARCHAR(255) DEFAULT '["tcp","udp","tls","mtls","ws","mws","wss","mwss","grpc","h2","h2c","kcp","quic","realm"]' COMMENT '支持的协议（JSON 数组）',
     `multiplier` DECIMAL(10,2) NOT NULL DEFAULT 1.00 COMMENT '倍率',
     `region` VARCHAR(64) DEFAULT '' COMMENT '节点地区',
     `last_seen` DATETIME DEFAULT NULL,
